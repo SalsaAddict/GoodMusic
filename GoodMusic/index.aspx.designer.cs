@@ -10,6 +10,6 @@
 namespace GoodMusic {
     
     
-    public partial class Main {
+    public partial class Index {
     }
 }

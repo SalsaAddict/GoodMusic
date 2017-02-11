@@ -8,6 +8,7 @@ GO
 IF OBJECT_ID(N'apiVideos', N'P') IS NOT NULL DROP PROCEDURE [apiVideos]
 IF OBJECT_ID(N'apiExport', N'P') IS NOT NULL DROP PROCEDURE [apiExport]
 IF OBJECT_ID(N'apiImport', N'P') IS NOT NULL DROP PROCEDURE [apiImport]
+IF OBJECT_ID(N'apiLogin', N'P') IS NOT NULL DROP PROCEDURE [apiLogin]
 -- Base Tables
 IF OBJECT_ID(N'favourite', N'U') IS NOT NULL DROP TABLE [favourite]
 IF OBJECT_ID(N'review', N'U') IS NOT NULL DROP TABLE [review]
@@ -397,6 +398,41 @@ CREATE TABLE [favourite] (
 	CONSTRAINT [fk_favourite_genre] FOREIGN KEY ([genreId]) REFERENCES [genre] ([id]),
 	CONSTRAINT [fk_favourite_video] FOREIGN KEY ([videoId]) REFERENCES [video] ([id])
 )
+GO
+
+CREATE PROCEDURE [apiLogin](
+	@userId NVARCHAR(25),
+	@forename NVARCHAR(127),
+	@surname NVARCHAR(127),
+	@gender NVARCHAR(6) = NULL,
+	@countryId NCHAR(2) = NULL
+)
+AS
+BEGIN
+	MERGE [User] t
+	USING (
+			SELECT
+				[userId] = @userId,
+				[forename] = @forename,
+				[surname] = @surname,
+				[genderId] = (SELECT [Id] FROM [gender] WHERE [Name] = @gender),
+				[countryId] = (SELECT [Id] FROM [country] WHERE [Id] = @countryId),
+				[ping] = GETUTCDATE()
+		) s
+	ON t.[Id] = s.[userId]
+	WHEN MATCHED THEN
+		UPDATE
+		SET
+			[forename] = s.[forename],
+			[surname] = s.[surname],
+			[genderId] = s.[genderId],
+			[countryId] = s.[countryId],
+			[ping] = s.[ping]
+	WHEN NOT MATCHED THEN
+		INSERT ([Id], [forename], [surname], [genderId], [countryId], [ping])
+		VALUES (s.[userId], s.[forename], s.[surname], s.[genderId], s.[countryId], s.[ping]);
+	SELECT @userId FOR XML PATH (N'userId'), ROOT (N'data')
+END
 GO
 
 CREATE PROCEDURE [apiImport](@import XML, @commit BIT = 0, @userId NVARCHAR(25) = NULL)
