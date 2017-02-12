@@ -684,3 +684,24 @@ END
 GO
 
 EXEC [apiVideos] N'bachata', N'moderna'
+
+DECLARE @genre NVARCHAR(10), @style NVARCHAR(10), @popularity NCHAR(1)= N'W'
+
+SELECT
+	[videoId] = rvw.[videoId],
+	[genreId] = rvw.[genreId],
+
+FROM [review] rvw
+	JOIN [genre] g ON rvw.[genreId] = g.[id]
+	JOIN [style] s ON rvw.[genreId] = s.[genreId] AND rvw.[styleId] = s.[id]
+	CROSS JOIN (VALUES (CASE @popularity
+			WHEN N'W' THEN DATEADD(week, -1, GETUTCDATE())
+			WHEN N'M' THEN DATEADD(month, -1, GETUTCDATE())
+			WHEN N'Y' THEN DATEADD(year, -1, GETUTCDATE())
+		END)) p ([since])
+	CROSS APPLY (VALUES (CONVERT(BIT, CASE
+			WHEN (rvw.[dateReviewed] >= p.[since] OR p.[since] IS NULL)
+				AND (g.[code] = @genre OR @genre IS NULL)
+				AND (s.[code] = @style OR @style IS NULL)
+			THEN 1 ELSE 0 END))) a ([applicable])
+WHERE g.[code] = @genre OR @genre IS NULL
