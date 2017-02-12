@@ -8,11 +8,15 @@ module GoodMusic {
     export const debugEnabled: boolean = true;
     export const fbAppId: string = "1574477942882037";
     export const googleApiKey: string = "AIzaSyCtuJp3jsaJp3X6U8ZS_X5H8omiAw5QaHg";
+    export interface IVideo { videoId: string; title: string; genre: string; }
     export interface IWindowService extends angular.IWindowService { fbAsyncInit: Function; }
-    export interface IRootScopeService extends angular.IRootScopeService {
+    export interface IRootScope extends angular.IScope {
         $authenticated: boolean;
+        $username: string;
         $login: Function;
         $logout: Function;
+        $playlist: string;
+        $videos: IVideo[]
     }
     export interface IResponse { success: boolean; data: any; }
     export module Database {
@@ -72,7 +76,7 @@ module GoodMusic {
         export class Service {
             static $inject: string[] = ["$rootScope", "$database", "$log"];
             constructor(
-                private $rootScope: IRootScopeService,
+                private $rootScope: IRootScope,
                 private $database: Database.Service,
                 private $log: angular.ILogService) {
                 $log.debug("gm:facebook:init");
@@ -81,7 +85,8 @@ module GoodMusic {
                 let fail: Function = (): void => {
                     delete this.$database.userId;
                     this.$rootScope.$authenticated = false;
-                    this.$log.debug("gm:login:fail");
+                    delete this.$rootScope.$username;
+                    this.$log.debug("gm:login:error");
                 }
                 try {
                     FB.login((response: IAuthResponse) => {
@@ -95,9 +100,10 @@ module GoodMusic {
                                     gender: { value: response.gender }
                                 }).then((response: IResponse) => {
                                     if (response.success) {
-                                        this.$database.userId = response.data.userId;
+                                        this.$database.userId = response.data.id;
                                         this.$rootScope.$authenticated = true;
-                                        this.$log.debug("gm:login:success", this.$database.userId);
+                                        this.$rootScope.$username = response.data.name;
+                                        this.$log.debug("gm:login", this.$database.userId);
                                     } else { fail(); }
                                 });
                             });
@@ -110,11 +116,57 @@ module GoodMusic {
                 try {
                     FB.logout(angular.noop);
                 }
+                catch (ex) {
+                    this.$log.error("gm:logout:error", ex.message);
+                }
                 finally {
                     delete this.$database.userId;
                     this.$rootScope.$authenticated = false;
+                    delete this.$rootScope.$username;
                     this.$log.debug("gm:logout");
                 }
+            }
+        }
+    }
+    export module Menu {
+        export class Controller {
+            static $inject: string[] = ["$scope"];
+            constructor(private $scope: angular.IScope) { }
+            public collapsed: boolean = true;
+            public toggle(): void { this.collapsed = !this.collapsed; }
+        }
+    }
+    export module Home {
+        interface IRouteParams extends angular.route.IRouteParamsService {
+            genre: string;
+            style: string;
+        }
+        export class Controller {
+            static $inject: string[] = ["$rootScope", "$routeParams", "$database"];
+            constructor(
+                private $rootScope: IRootScope,
+                private $routeParams: IRouteParams,
+                private $database: Database.Service) {
+                this.fetchVideos();
+            }
+            public get genre(): string { return this.$routeParams.genre || null; }
+            public get style(): string { return this.$routeParams.style || null; }
+            public fetchVideos(): void {
+                let procedure: Database.IProcedure = {
+                    name: "apiVideos",
+                    parameters: {
+                        genre: { value: this.genre },
+                        style: { value: this.style }
+                    }
+                };
+                this.$database.execute("apiVideos", {
+                    genre: { value: this.genre },
+                    style: { value: this.style }
+                }).then((response: IResponse) => {
+                    this.$rootScope.$playlist = response.data.playlist;
+                    this.$rootScope.$videos = response.data.videos;
+                    }, angular.noop);
+                let x: number = 1;
             }
         }
     }
@@ -124,15 +176,22 @@ let gm: angular.IModule = angular.module("gm", ["ngRoute", "ngAria", "ngAnimate"
 
 gm.service("$database", GoodMusic.Database.Service);
 gm.service("$facebook", GoodMusic.Facebook.Service);
+gm.controller("menuController", GoodMusic.Menu.Controller);
 
-gm.config(["$logProvider", function ($logProvider: angular.ILogProvider) {
+gm.config(["$logProvider", "$routeProvider", function (
+    $logProvider: angular.ILogProvider,
+    $routeProvider: angular.route.IRouteProvider) {
     $logProvider.debugEnabled(GoodMusic.debugEnabled);
+    $routeProvider
+        .when("/home/:genre?/:style?", { name: "home", templateUrl: "Views/home.html", controller: GoodMusic.Home.Controller, controllerAs: "$ctrl" })
+        .otherwise({ redirectTo: "/home" })
+        .caseInsensitiveMatch = true;
 }]);
 
 gm.run(["$log", "$window", "$rootScope", "$facebook", function (
     $log: angular.ILogService,
     $window: GoodMusic.IWindowService,
-    $rootScope: GoodMusic.IRootScopeService,
+    $rootScope: GoodMusic.IRootScope,
     $facebook: GoodMusic.Facebook.Service) {
     $window.fbAsyncInit = function () {
         FB.init({ appId: GoodMusic.fbAppId, version: "v2.8" });

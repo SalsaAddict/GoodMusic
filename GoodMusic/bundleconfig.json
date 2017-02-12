@@ -4,5 +4,11 @@
     "inputFiles": [
       "Scripts/goodmusic/goodmusic.js"
     ]
+  },
+  {
+    "outputFileName": "Content/goodmusic.min.css",
+    "inputFiles": [
+      "Content/goodmusic.css"
+    ]
   }
 ]

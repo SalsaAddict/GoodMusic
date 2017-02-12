@@ -297,51 +297,57 @@ GO
 
 CREATE TABLE [genre] (
 	[id] INT NOT NULL IDENTITY (1, 1),
+	[code] NVARCHAR(10) NOT NULL,
 	[name] NVARCHAR(255) NOT NULL,
 	CONSTRAINT [pk_genre] PRIMARY KEY CLUSTERED ([id]),
-	CONSTRAINT [uq_genre_name] UNIQUE ([name])
+	CONSTRAINT [uq_genre_code] UNIQUE ([code]),
+	CONSTRAINT [uq_genre_name] UNIQUE ([name]),
+	CONSTRAINT [ck_genre_code] CHECK ([code] NOT LIKE N'%[^A-Z0-9]%' AND [code] = LOWER([code]) COLLATE Latin1_General_CS_AS)
 )
 GO
 
 SET IDENTITY_INSERT [genre] ON
-INSERT INTO [genre] ([id], [name])
+INSERT INTO [genre] ([id], [code], [name])
 VALUES
-	(1, N'Salsa'),
-	(2, N'Bachata'),
-	(3, N'Kizomba'),
-	(4, N'Cha Cha Chá')
+	(1, N'salsa', N'Salsa'),
+	(2, N'bachata', N'Bachata'),
+	(3, N'kizomba', N'Kizomba'),
+	(4, N'chachacha', N'Cha Cha Chá')
 SET IDENTITY_INSERT [genre] OFF
 GO
 
 CREATE TABLE [style] (
 	[genreId] INT NOT NULL,
 	[id] INT NOT NULL IDENTITY (1, 1),
+	[code] NVARCHAR(10) NOT NULL,
 	[name] NVARCHAR(255) NOT NULL,
 	[sort] INT NOT NULL,
 	CONSTRAINT [pk_style] PRIMARY KEY NONCLUSTERED ([genreId], [id]),
 	CONSTRAINT [uq_style_id] UNIQUE ([id]),
+	CONSTRAINT [uq_style_code] UNIQUE ([code]),
 	CONSTRAINT [uq_style_name] UNIQUE ([name]),
-	CONSTRAINT [uq_style_sort] UNIQUE CLUSTERED ([genreId], [sort])
+	CONSTRAINT [uq_style_sort] UNIQUE CLUSTERED ([genreId], [sort]),
+	CONSTRAINT [ck_style_code] CHECK ([code] NOT LIKE N'%[^A-Z0-9]%' AND [code] = LOWER([code]) COLLATE Latin1_General_CS_AS)
 )
 GO
 
 SET IDENTITY_INSERT [style] ON
-INSERT INTO [style] ([genreId], [id], [name], [sort])
+INSERT INTO [style] ([genreId], [id], [code], [name], [sort])
 VALUES
-	(1, 1, 'Cross-Body On1', 1),
-	(1, 2, 'Cross-Body On2', 2),
-	(1, 3, 'Cuban Casino', 3),
-	(1, 4, 'La Rueda de Casino', 4),
-	(1, 5, 'Son/Contratiempo', 5),
-	(1, 6, 'Colombian/Cali', 6),
-	(2, 7, 'Dominican Bachata', 1),
-	(2, 8, 'Bachata Moderna', 2),
-	(2, 9, 'Sensual Bachata', 3),
-	(2, 10, 'BachaTango', 4),
-	(3, 11, 'Kizomba', 1),
-	(3, 12, 'Urban Kiz', 2),
-	(3, 13, 'Semba', 3),
-	(4, 14, 'Cha Cha Chá', 1)
+	(1, 1, N'on1', N'Cross-Body On1', 1),
+	(1, 2, N'on2', N'Cross-Body On2', 2),
+	(1, 3, N'casino', N'Cuban Casino', 3),
+	(1, 4, N'rueda', N'La Rueda de Casino', 4),
+	(1, 5, N'son', N'Son/Contratiempo', 5),
+	(1, 6, N'calena', N'Colombian/Cali', 6),
+	(2, 7, N'dominican', N'Dominican Bachata', 1),
+	(2, 8, N'moderna', N'Bachata Moderna', 2),
+	(2, 9, N'sensual', N'Sensual Bachata', 3),
+	(2, 10, N'bachatango', N'BachaTango', 4),
+	(3, 11, N'kizomba', N'Kizomba', 1),
+	(3, 12, N'urbankiz', N'Urban Kiz', 2),
+	(3, 13, N'semba', N'Semba', 3),
+	(4, 14, N'chachacha', N'Cha Cha Chá', 1)
 SET IDENTITY_INSERT [style] ON
 GO
 
@@ -431,7 +437,12 @@ BEGIN
 	WHEN NOT MATCHED THEN
 		INSERT ([Id], [forename], [surname], [genderId], [countryId], [ping])
 		VALUES (s.[userId], s.[forename], s.[surname], s.[genderId], s.[countryId], s.[ping]);
-	SELECT @userId FOR XML PATH (N'userId'), ROOT (N'data')
+	SELECT
+		[id],
+		[name]
+	FROM [user]
+	WHERE [id] = @userId
+	FOR XML PATH (N'data')
 END
 GO
 
@@ -602,8 +613,8 @@ END
 GO
 
 CREATE PROCEDURE [apiVideos](
-	@genreId INT = NULL,
-	@styleId INT = NULL,
+	@genre NVARCHAR(10) = NULL,
+	@style NVARCHAR(10) = NULL,
 	@period NCHAR(1) = NULL,
 	@favourites BIT = 0,
 	@userId NVARCHAR(25) = NULL
@@ -616,42 +627,60 @@ BEGIN
 			WHEN N'M' THEN DATEADD(month, -1, GETUTCDATE())
 			WHEN N'Y' THEN DATEADD(year, -1, GETUTCDATE())
 		END
-	;WITH [reviews] AS (
+	;WITH XMLNAMESPACES (N'http://james.newtonking.com/projects/json' AS [json]),
+	[reviews] AS (
 			SELECT
-				[videoId],
-				[genreId],
-				[like] = CONVERT(BIT, MAX(CASE WHEN [userId] = @userId THEN [like] ELSE 0 END)),
-				[likes] = COUNT(NULLIF([like], 0)),
-				[dislike] = CONVERT(BIT, MAX(CASE WHEN [userId] = @userId THEN [dislike] ELSE 0 END)),
-				[dislikes] = COUNT(NULLIF([dislike], 0)),
-				[rank] = ROW_NUMBER() OVER (ORDER BY CONVERT(FLOAT, COUNT(NULLIF([like], 0))) / CONVERT(FLOAT, COUNT(*)) DESC, COUNT(*) DESC, MAX([dateReviewed]) DESC)
-			FROM [review]
-			WHERE ([genreId] = @genreId OR @genreId IS NULL)
-				AND ([styleId] = @styleId OR @styleId IS NULL)
-				AND ([dateReviewed] >= @oldest OR @oldest IS NULL)
-			GROUP BY [videoId], [genreId]
+				[videoId] = rvw.[videoId],
+				[genreId] = rvw.[genreId],
+				[like] = CONVERT(BIT, MAX(CASE WHEN rvw.[userId] = @userId THEN rvw.[like] ELSE 0 END)),
+				[likes] = COUNT(NULLIF(rvw.[like], 0)),
+				[dislike] = CONVERT(BIT, MAX(CASE WHEN rvw.[userId] = @userId THEN rvw.[dislike] ELSE 0 END)),
+				[dislikes] = COUNT(NULLIF(rvw.[dislike], 0)),
+				[rank] = ROW_NUMBER() OVER (ORDER BY CONVERT(FLOAT, COUNT(NULLIF(rvw.[like], 0))) / CONVERT(FLOAT, COUNT(*)) DESC, COUNT(*) DESC, MAX(rvw.[dateReviewed]) DESC)
+			FROM [review] rvw
+				JOIN [genre] g ON rvw.[genreId] = g.[id]
+				JOIN [style] s ON rvw.[genreId] = s.[genreId] AND rvw.[styleId] = s.[id]
+			WHERE (g.[code] = @genre OR @genre IS NULL)
+				AND (s.[code] = @style OR @style IS NULL)
+				AND (rvw.[dateReviewed] >= @oldest OR @oldest IS NULL)
+			GROUP BY rvw.[videoId], rvw.[genreId]
 		)
 	SELECT
-		[rank] = r.[rank],
-		[videoId] = r.[videoId],
-		[title] = v.[title],
-		[genre] = g.[name],
-		[thumbnail] = v.[thumbnail],
-		[like] = r.[like],
-		[likes] = r.[likes],
-		[dislike] = r.[dislike],
-		[dislikes] = r.[dislikes],
-		[favourite] = CONVERT(BIT, CASE WHEN fav.[videoId] IS NULL THEN 0 ELSE 1 END)
-	FROM [reviews] r
-		JOIN [video] v ON r.[videoId] = v.[id]
-		JOIN [genre] g ON r.[genreId] = g.[id]
-		LEFT JOIN [favourite] fav ON fav.[userId] = @userId
-			AND r.[genreId] = fav.[genreId]
-			AND r.[videoId] = fav.[videoId]
-	WHERE (fav.[videoId] IS NOT NULL OR ISNULL(@favourites, 0) = 0)
-	ORDER BY r.[rank]
+		[playlist] = (
+				SELECT ISNULL((
+							SELECT ISNULL(s.[name], g.[name])
+							FROM [genre] g
+								LEFT JOIN [style] s ON g.[id] = s.[genreId] AND s.[code] = @style
+							WHERE g.[code] = @genre
+						), N'All Genres')
+				FOR XML PATH (N'')
+			),
+		(
+				SELECT
+					[@json:Array] = N'true',
+					[rank] = r.[rank],
+					[videoId] = r.[videoId],
+					[title] = v.[title],
+					[genre] = g.[name],
+					[thumbnail] = v.[thumbnail],
+					[like] = r.[like],
+					[likes] = r.[likes],
+					[dislike] = r.[dislike],
+					[dislikes] = r.[dislikes],
+					[favourite] = CONVERT(BIT, CASE WHEN fav.[videoId] IS NULL THEN 0 ELSE 1 END)
+				FROM [reviews] r
+					JOIN [video] v ON r.[videoId] = v.[id]
+					JOIN [genre] g ON r.[genreId] = g.[id]
+					LEFT JOIN [favourite] fav ON fav.[userId] = @userId
+						AND r.[genreId] = fav.[genreId]
+						AND r.[videoId] = fav.[videoId]
+				WHERE (fav.[videoId] IS NOT NULL OR ISNULL(@favourites, 0) = 0)
+				ORDER BY r.[rank]
+				FOR XML PATH (N'videos'), TYPE
+			)
+	FOR XML PATH (N'data')
 	RETURN
 END
 GO
 
-EXEC [apiVideos] 2, 8
+EXEC [apiVideos] N'bachata', N'moderna'

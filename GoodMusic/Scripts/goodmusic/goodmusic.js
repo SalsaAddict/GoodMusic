@@ -58,7 +58,8 @@ var GoodMusic;
                     var fail = function () {
                         delete _this.$database.userId;
                         _this.$rootScope.$authenticated = false;
-                        _this.$log.debug("gm:login:fail");
+                        delete _this.$rootScope.$username;
+                        _this.$log.debug("gm:login:error");
                     };
                     try {
                         FB.login(function (response) {
@@ -72,9 +73,10 @@ var GoodMusic;
                                         gender: { value: response.gender }
                                     }).then(function (response) {
                                         if (response.success) {
-                                            _this.$database.userId = response.data.userId;
+                                            _this.$database.userId = response.data.id;
                                             _this.$rootScope.$authenticated = true;
-                                            _this.$log.debug("gm:login:success", _this.$database.userId);
+                                            _this.$rootScope.$username = response.data.name;
+                                            _this.$log.debug("gm:login", _this.$database.userId);
                                         }
                                         else {
                                             fail();
@@ -94,9 +96,13 @@ var GoodMusic;
                     try {
                         FB.logout(angular.noop);
                     }
+                    catch (ex) {
+                        _this.$log.error("gm:logout:error", ex.message);
+                    }
                     finally {
                         delete _this.$database.userId;
                         _this.$rootScope.$authenticated = false;
+                        delete _this.$rootScope.$username;
                         _this.$log.debug("gm:logout");
                     }
                 };
@@ -107,12 +113,72 @@ var GoodMusic;
         }());
         Facebook.Service = Service;
     })(Facebook = GoodMusic.Facebook || (GoodMusic.Facebook = {}));
+    var Menu;
+    (function (Menu) {
+        var Controller = (function () {
+            function Controller($scope) {
+                this.$scope = $scope;
+                this.collapsed = true;
+            }
+            Controller.prototype.toggle = function () { this.collapsed = !this.collapsed; };
+            Controller.$inject = ["$scope"];
+            return Controller;
+        }());
+        Menu.Controller = Controller;
+    })(Menu = GoodMusic.Menu || (GoodMusic.Menu = {}));
+    var Home;
+    (function (Home) {
+        var Controller = (function () {
+            function Controller($rootScope, $routeParams, $database) {
+                this.$rootScope = $rootScope;
+                this.$routeParams = $routeParams;
+                this.$database = $database;
+                this.fetchVideos();
+            }
+            Object.defineProperty(Controller.prototype, "genre", {
+                get: function () { return this.$routeParams.genre || null; },
+                enumerable: true,
+                configurable: true
+            });
+            Object.defineProperty(Controller.prototype, "style", {
+                get: function () { return this.$routeParams.style || null; },
+                enumerable: true,
+                configurable: true
+            });
+            Controller.prototype.fetchVideos = function () {
+                var _this = this;
+                var procedure = {
+                    name: "apiVideos",
+                    parameters: {
+                        genre: { value: this.genre },
+                        style: { value: this.style }
+                    }
+                };
+                this.$database.execute("apiVideos", {
+                    genre: { value: this.genre },
+                    style: { value: this.style }
+                }).then(function (response) {
+                    _this.$rootScope.$playlist = response.data.playlist;
+                    _this.$rootScope.$videos = response.data.videos;
+                }, angular.noop);
+                var x = 1;
+            };
+            Controller.$inject = ["$rootScope", "$routeParams", "$database"];
+            return Controller;
+        }());
+        Home.Controller = Controller;
+    })(Home = GoodMusic.Home || (GoodMusic.Home = {}));
 })(GoodMusic || (GoodMusic = {}));
 var gm = angular.module("gm", ["ngRoute", "ngAria", "ngAnimate", "ui.bootstrap"]);
 gm.service("$database", GoodMusic.Database.Service);
 gm.service("$facebook", GoodMusic.Facebook.Service);
-gm.config(["$logProvider", function ($logProvider) {
+gm.controller("menuController", GoodMusic.Menu.Controller);
+gm.config(["$logProvider", "$routeProvider", function ($logProvider, $routeProvider) {
         $logProvider.debugEnabled(GoodMusic.debugEnabled);
+        $routeProvider
+            .when("/home/:genre?/:style?", { name: "home", templateUrl: "Views/home.html", controller: GoodMusic.Home.Controller, controllerAs: "$ctrl" })
+            .otherwise({ redirectTo: "/home" })
+            .caseInsensitiveMatch = true;
     }]);
 gm.run(["$log", "$window", "$rootScope", "$facebook", function ($log, $window, $rootScope, $facebook) {
         $window.fbAsyncInit = function () {
@@ -122,3 +188,4 @@ gm.run(["$log", "$window", "$rootScope", "$facebook", function ($log, $window, $
         $rootScope.$authenticated = false;
         $log.debug("gm:run");
     }]);
+//# sourceMappingURL=goodmusic.js.map

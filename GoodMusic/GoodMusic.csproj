@@ -76,6 +76,10 @@
     <Content Include="Content\bootstrap.simplex.min.css" />
     <Content Include="Content\font-awesome.css" />
     <Content Include="Content\font-awesome.min.css" />
+    <Content Include="Content\goodmusic.css" />
+    <Content Include="Content\goodmusic.min.css">
+      <DependentUpon>goodmusic.css</DependentUpon>
+    </Content>
     <Content Include="Fonts\fontawesome-webfont.svg" />
     <Content Include="Global.asax" />
     <Content Include="index.aspx" />
@@ -879,6 +883,7 @@
     <None Include="Scripts\_references.js" />
     <Content Include="Sql\GM.sql" />
     <Content Include="Sql\GMImport.sql" />
+    <Content Include="Views\home.html" />
     <Content Include="Web.config" />
   </ItemGroup>
   <ItemGroup>
@@ -897,9 +902,7 @@
     </Compile>
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
-  <ItemGroup>
-    <Folder Include="Views\" />
-  </ItemGroup>
+  <ItemGroup />
   <ItemGroup>
     <Service Include="{4A0DDDB5-7A95-4FBF-97CC-616D07737A77}" />
   </ItemGroup>
