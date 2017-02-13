@@ -48,18 +48,18 @@
                     </li>
                 </ul>
                 <div class="navbar-right">
-                    <p class="navbar-text" ng-if="$authenticated">
-                        <small>{{$username}}</small>
+                    <p class="navbar-text" ng-if="$user">
+                        <small>{{$user.name}}</small>
                     </p>
                     <ul class="nav navbar-nav">
                         <li>
-                            <a href="#" ng-if="!$authenticated" ng-click="$login($event)">
+                            <a href="#" ng-if="!$user" ng-click="$login($event)">
                                 <i class="fa fa-facebook-official"></i>
                                 <span>Login</span>
                             </a>
                         </li>
                         <li>
-                            <a href="#" ng-if="$authenticated" ng-click="$logout($event)">
+                            <a href="#" ng-if="$user" ng-click="$logout($event)">
                                 <i class="fa fa-facebook-official"></i>
                                 <span>Logout</span>
                             </a>
