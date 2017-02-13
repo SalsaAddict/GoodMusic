@@ -1,0 +1,25 @@
+﻿<div class="col-xs-12 col-sm-offset-2 col-sm-8 col-md-offset-3 col-md-6 col-lg-offset-4 col-lg-4">
+    <div class="text-center text-uppercase"><h2>Popularity</h2></div>
+    <div class="btn-group btn-group-justified">
+        <div class="btn-group" ng-repeat="period in $ctrl.periods">
+            <button type="button" class="btn btn-default" ng-class="{'btn-primary': period.id === $ctrl.period}" ng-click="$ctrl.period = period.id">
+                {{period.description}}
+            </button>
+        </div>
+    </div>
+    <div class="text-center text-uppercase"><h2>Dance Style</h2></div>
+    <div class="list-group">
+        <button type="button" class="list-group-item btn-default" ng-repeat-start="genre in $ctrl.genres" ng-click="$ctrl.expand(genre)">
+            <i class="fa fa-fw fa-lg" ng-class="{'fa-plus-circle': !genre.expanded, 'fa-minus-circle': genre.expanded}"></i>
+            <span>{{genre.name}}</span>
+        </button>
+        <a ng-href="#!/videos/{{$ctrl.period}}/{{genre.uri}}" class="list-group-item" ng-if="genre.expanded && genre.styles.length > 1">
+            <b>All Styles</b>
+            <span class="badge">{{genre.count}}</span>
+        </a>
+        <a ng-href="#!/videos/{{$ctrl.period}}/{{genre.uri}}/{{style.uri}}" class="list-group-item" ng-repeat-end ng-repeat="style in genre.styles" ng-if="genre.expanded">
+            <b>{{style.name}}</b>
+            <span class="badge">{{style.count}}</span>
+        </a>
+    </div>
+</div>

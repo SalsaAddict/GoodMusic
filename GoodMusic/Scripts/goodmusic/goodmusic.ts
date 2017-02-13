@@ -16,7 +16,8 @@ module GoodMusic {
         $login: Function;
         $logout: Function;
         $playlist: string;
-        $videos: IVideo[]
+        $videos: IVideo[];
+        $current: number;
     }
     export interface IResponse { success: boolean; data: any; }
     export module Database {
@@ -74,14 +75,17 @@ module GoodMusic {
         }
         interface IUser { id: string; first_name: string; last_name: string; gender: "male" | "female"; }
         export class Service {
-            static $inject: string[] = ["$rootScope", "$database", "$log"];
+            static $inject: string[] = ["$rootScope", "$route", "$database", "$log"];
             constructor(
                 private $rootScope: IRootScope,
+                private $route: angular.route.IRouteService,
                 private $database: Database.Service,
                 private $log: angular.ILogService) {
                 $log.debug("gm:facebook:init");
             }
-            public login: Function = this.$rootScope.$login = (): void => {
+            public login: Function = this.$rootScope.$login = ($event: angular.IAngularEvent): void => {
+                $event.preventDefault();
+                $event.stopPropagation();
                 let fail: Function = (): void => {
                     delete this.$database.userId;
                     this.$rootScope.$authenticated = false;
@@ -104,6 +108,7 @@ module GoodMusic {
                                         this.$rootScope.$authenticated = true;
                                         this.$rootScope.$username = response.data.name;
                                         this.$log.debug("gm:login", this.$database.userId);
+                                        this.$route.reload();
                                     } else { fail(); }
                                 });
                             });
@@ -112,7 +117,9 @@ module GoodMusic {
                 }
                 catch (ex) { fail(); }
             }
-            public logout: Function = this.$rootScope.$logout = (): void => {
+            public logout: Function = this.$rootScope.$logout = ($event: angular.IAngularEvent): void => {
+                $event.preventDefault();
+                $event.stopPropagation();
                 try {
                     FB.logout(angular.noop);
                 }
@@ -124,49 +131,96 @@ module GoodMusic {
                     this.$rootScope.$authenticated = false;
                     delete this.$rootScope.$username;
                     this.$log.debug("gm:logout");
+                    this.$route.reload();
                 }
             }
         }
     }
     export module Menu {
+        interface IScope extends IRootScope { }
         export class Controller {
-            static $inject: string[] = ["$scope"];
-            constructor(private $scope: angular.IScope) { }
+            static $inject: string[] = ["$scope", "$route"];
+            constructor(
+                private $scope: IScope,
+                private $route: angular.route.IRouteService) {
+                $scope.$on("$routeChangeSuccess", () => {
+                    this.collapsed = true;
+                });
+            }
+            public get title(): string {
+                let defaultTitle: string = "Good Music";
+                if (!this.$route.current) { return defaultTitle; }
+                switch (this.$route.current.name) {
+                    case "videos": return this.$scope.$playlist || "All Genres";
+                    default: return defaultTitle;
+                }
+            }
             public collapsed: boolean = true;
             public toggle(): void { this.collapsed = !this.collapsed; }
         }
     }
-    export module Home {
+    export module Videos {
         interface IRouteParams extends angular.route.IRouteParamsService {
-            genre: string;
-            style: string;
+            period: string;
+            genreUri: string;
+            styleUri: string;
         }
         export class Controller {
-            static $inject: string[] = ["$rootScope", "$routeParams", "$database"];
+            static $inject: string[] = ["$rootScope", "$routeParams", "$database", "$anchorScroll"];
             constructor(
                 private $rootScope: IRootScope,
                 private $routeParams: IRouteParams,
-                private $database: Database.Service) {
+                private $database: Database.Service,
+                public $anchorScroll: angular.IAnchorScrollService) {
                 this.fetchVideos();
             }
-            public get genre(): string { return this.$routeParams.genre || null; }
-            public get style(): string { return this.$routeParams.style || null; }
+            public page: number = 1;
+            public pageSize: number = 10;
+            public get period(): string { return this.$routeParams.period || "week"; }
+            public get genreUri(): string { return this.$routeParams.genreUri || null; }
+            public get styleUri(): string { return this.$routeParams.styleUri || null; }
             public fetchVideos(): void {
-                let procedure: Database.IProcedure = {
-                    name: "apiVideos",
-                    parameters: {
-                        genre: { value: this.genre },
-                        style: { value: this.style }
-                    }
-                };
                 this.$database.execute("apiVideos", {
-                    genre: { value: this.genre },
-                    style: { value: this.style }
+                    period: { value: this.period },
+                    genreUri: { value: this.genreUri },
+                    styleUri: { value: this.styleUri }
                 }).then((response: IResponse) => {
                     this.$rootScope.$playlist = response.data.playlist;
                     this.$rootScope.$videos = response.data.videos;
-                    }, angular.noop);
+                }, angular.noop);
                 let x: number = 1;
+            }
+        }
+    }
+    export module Search {
+        interface IPopularity { id: string; description: string; }
+        interface IStyle { id: string; uri: string; name: string; count: string; }
+        interface IGenre { id: string; uri: string; name: string; count: string; styles: IStyle[]; expanded: boolean; }
+        export class Controller {
+            static $inject: string[] = ["$rootScope", "$database"];
+            constructor(
+                private $rootScope: IRootScope,
+                private $database: Database.Service) {
+                this.fetchGenres().then((genres: IGenre[]) => { this.expand(genres[0]); });
+            }
+            public periods: IPopularity[] = [
+                { id: "weekly", description: "Week" },
+                { id: "monthly", description: "Month" },
+                { id: "yearly", description: "Year" },
+                { id: "all", description: "Ever" }
+            ];
+            public period: string = this.periods[0].id;
+            public genres: IGenre[];
+            public expand(genre: IGenre) {
+                this.genres.forEach(function (item: IGenre) { item.expanded = false; });
+                genre.expanded = true;
+            }
+            public fetchGenres(): angular.IPromise<IGenre[]> {
+                return this.$database.execute("apiSearch").then((response: IResponse) => {
+                    this.genres = response.data.genres;
+                    this.genres[0].expanded = true;
+                    return this.genres;
+                }, angular.noop);
             }
         }
     }
@@ -183,7 +237,19 @@ gm.config(["$logProvider", "$routeProvider", function (
     $routeProvider: angular.route.IRouteProvider) {
     $logProvider.debugEnabled(GoodMusic.debugEnabled);
     $routeProvider
-        .when("/home/:genre?/:style?", { name: "home", templateUrl: "Views/home.html", controller: GoodMusic.Home.Controller, controllerAs: "$ctrl" })
+        .when("/home", { name: "home", templateUrl: "Views/home.html" })
+        .when("/search", {
+            name: "search",
+            templateUrl: "Views/search.html",
+            controller: GoodMusic.Search.Controller,
+            controllerAs: "$ctrl"
+        })
+        .when("/videos/:period/:genreUri/:styleUri?", {
+            name: "videos",
+            templateUrl: "Views/videos.html",
+            controller: GoodMusic.Videos.Controller,
+            controllerAs: "$ctrl"
+        })
         .otherwise({ redirectTo: "/home" })
         .caseInsensitiveMatch = true;
 }]);

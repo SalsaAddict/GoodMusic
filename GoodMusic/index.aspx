@@ -22,16 +22,49 @@
                     <span class="icon-bar"></span>
                     <span class="icon-bar"></span>
                 </button>
-                <span class="navbar-brand ellipsis">
-                    <b>{{$playlist || "Good Music"}}</b>
-                </span>
+                <a href="" class="navbar-brand ellipsis">
+                    <b>{{$menu.title}}</b>
+                </a>
             </div>
             <div class="navbar-collapse" uib-collapse="$menu.collapsed">
+                <ul class="nav navbar-nav navbar-left">
+                    <li>
+                        <a href="#!/home">
+                            <i class="fa fa-home"></i>
+                            <span>Home</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="#!/search">
+                            <i class="fa fa-search"></i>
+                            <span>Search</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="#!/add">
+                            <i class="fa fa-plus-circle"></i>
+                            <span>Add</span>
+                        </a>
+                    </li>
+                </ul>
                 <div class="navbar-right">
-                    <div class="separator"></div>
-                    <button type="button" class="btn btn-sm btn-default navbar-btn" ng-click="$login()" ng-if="!$authenticated">Login</button>
-                    <p class="navbar-text" ng-if="$authenticated"><small>{{$username}}</small></p>
-                    <button type="button" class="btn btn-sm btn-default navbar-btn" ng-click="$logout()" ng-if="$authenticated">Logout</button>
+                    <p class="navbar-text" ng-if="$authenticated">
+                        <small>{{$username}}</small>
+                    </p>
+                    <ul class="nav navbar-nav">
+                        <li>
+                            <a href="#" ng-if="!$authenticated" ng-click="$login($event)">
+                                <i class="fa fa-facebook-official"></i>
+                                <span>Login</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" ng-if="$authenticated" ng-click="$logout($event)">
+                                <i class="fa fa-facebook-official"></i>
+                                <span>Logout</span>
+                            </a>
+                        </li>
+                    </ul>
                 </div>
             </div>
         </div>

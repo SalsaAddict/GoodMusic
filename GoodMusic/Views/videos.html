@@ -1,0 +1,24 @@
+﻿<div class="container-fluid">
+    <div class="row">
+        <div ng-repeat="video in $videos | limitTo: $ctrl.pageSize : ($ctrl.page - 1) * $ctrl.pageSize" class="col-xs-12 col-sm-6 col-md-4 col-lg-3">
+            <div class="thumbnail">
+                <div class="embed-responsive embed-responsive-16by9">
+                    <img class="embed-responsive-item" ng-src="https://i.ytimg.com/vi/{{video.videoId}}/mqdefault.jpg" alt="{{video.title}}" />
+                </div>
+                <div class="caption ellipsis text-uppercase">
+                    <b>{{video.rank}}. {{video.title}}</b>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="center-block" ng-if="$videos.length > $ctrl.pageSize">
+        <div class="text-center">
+            <ul uib-pagination class="pagination-sm" ng-model="$ctrl.page"
+                total-items="$videos.length" items-per-page="$ctrl.pageSize"
+                rotate="true" force-ellipses="true"
+                boundary-links="true" boundary-link-numbers="true"
+                first-text="&laquo;" previous-text="&lt;" next-text="&gt;" last-text="&raquo;"
+                max-size="3" ng-change="$ctrl.$anchorScroll()"></ul>
+        </div>
+    </div>
+</div>

@@ -1,16 +1,15 @@
-﻿<div class="container-fluid">
-    <div class="row">
-        <div ng-repeat="video in $videos" class="col-xs-12 col-sm-6 col-md-4 col-lg-3">
-            <div class="thumbnail">
-                <div class="embed-responsive embed-responsive-16by9">
-                    <img class="embed-responsive-item" ng-src="https://i.ytimg.com/vi/{{video.videoId}}/mqdefault.jpg" />
-                </div>
-                <div class="caption ellipsis text-uppercase">
-                    <b>{{video.rank}}. {{video.title}}</b>
+﻿<div class="container">
+    <div class="jumbotron text-center">
+        <div class="text-center">
+            <h2>
+                <b>
+                    <span>Good Music for Dancing</span>
                     <br />
-                    <small>{{video.genre}}</small>
-                </div>
-            </div>
+                    <small>Music categorized by Dance Style</small>
+                </b>
+            </h2>
         </div>
+        <h5>Click <a href="#!/search">search</a> to find some good music for the style you like to dance</h5>
+        <h5>Click <a href="#!/add">add</a> to recommend some good music</h5>
     </div>
 </div>

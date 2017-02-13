@@ -6,6 +6,7 @@ SET NOCOUNT ON
 GO
 
 IF OBJECT_ID(N'apiVideos', N'P') IS NOT NULL DROP PROCEDURE [apiVideos]
+IF OBJECT_ID(N'apiSearch', N'P') IS NOT NULL DROP PROCEDURE [apiSearch]
 IF OBJECT_ID(N'apiExport', N'P') IS NOT NULL DROP PROCEDURE [apiExport]
 IF OBJECT_ID(N'apiImport', N'P') IS NOT NULL DROP PROCEDURE [apiImport]
 IF OBJECT_ID(N'apiLogin', N'P') IS NOT NULL DROP PROCEDURE [apiLogin]
@@ -297,17 +298,17 @@ GO
 
 CREATE TABLE [genre] (
 	[id] INT NOT NULL IDENTITY (1, 1),
-	[code] NVARCHAR(10) NOT NULL,
+	[uri] NVARCHAR(10) NOT NULL,
 	[name] NVARCHAR(255) NOT NULL,
 	CONSTRAINT [pk_genre] PRIMARY KEY CLUSTERED ([id]),
-	CONSTRAINT [uq_genre_code] UNIQUE ([code]),
+	CONSTRAINT [uq_genre_uri] UNIQUE ([uri]),
 	CONSTRAINT [uq_genre_name] UNIQUE ([name]),
-	CONSTRAINT [ck_genre_code] CHECK ([code] NOT LIKE N'%[^A-Z0-9]%' AND [code] = LOWER([code]) COLLATE Latin1_General_CS_AS)
+	CONSTRAINT [ck_genre_uri] CHECK ([uri] NOT LIKE N'%[^A-Z0-9]%' AND [uri] = LOWER([uri]) COLLATE Latin1_General_CS_AS)
 )
 GO
 
 SET IDENTITY_INSERT [genre] ON
-INSERT INTO [genre] ([id], [code], [name])
+INSERT INTO [genre] ([id], [uri], [name])
 VALUES
 	(1, N'salsa', N'Salsa'),
 	(2, N'bachata', N'Bachata'),
@@ -319,20 +320,20 @@ GO
 CREATE TABLE [style] (
 	[genreId] INT NOT NULL,
 	[id] INT NOT NULL IDENTITY (1, 1),
-	[code] NVARCHAR(10) NOT NULL,
+	[uri] NVARCHAR(10) NOT NULL,
 	[name] NVARCHAR(255) NOT NULL,
 	[sort] INT NOT NULL,
 	CONSTRAINT [pk_style] PRIMARY KEY NONCLUSTERED ([genreId], [id]),
 	CONSTRAINT [uq_style_id] UNIQUE ([id]),
-	CONSTRAINT [uq_style_code] UNIQUE ([code]),
+	CONSTRAINT [uq_style_uri] UNIQUE ([uri]),
 	CONSTRAINT [uq_style_name] UNIQUE ([name]),
 	CONSTRAINT [uq_style_sort] UNIQUE CLUSTERED ([genreId], [sort]),
-	CONSTRAINT [ck_style_code] CHECK ([code] NOT LIKE N'%[^A-Z0-9]%' AND [code] = LOWER([code]) COLLATE Latin1_General_CS_AS)
+	CONSTRAINT [ck_style_uri] CHECK ([uri] NOT LIKE N'%[^A-Z0-9]%' AND [uri] = LOWER([uri]) COLLATE Latin1_General_CS_AS)
 )
 GO
 
 SET IDENTITY_INSERT [style] ON
-INSERT INTO [style] ([genreId], [id], [code], [name], [sort])
+INSERT INTO [style] ([genreId], [id], [uri], [name], [sort])
 VALUES
 	(1, 1, N'on1', N'Cross-Body On1', 1),
 	(1, 2, N'on2', N'Cross-Body On2', 2),
@@ -612,9 +613,54 @@ BEGIN
 END
 GO
 
+CREATE PROCEDURE [apiSearch](@userId NVARCHAR(25) = NULL)
+AS
+BEGIN
+	SET NOCOUNT ON
+	;WITH XMLNAMESPACES (N'http://james.newtonking.com/projects/json' AS [json])
+	SELECT
+		[@json:Array] = N'true',
+		[id] = g.[id],
+		[uri] = g.[uri],
+		[name] = g.[name],
+		[count] = ISNULL(gv.[count], 0),
+		( -- Styles
+				SELECT
+					[@json:Array] = N'true',
+					[id] = s.[id],
+					[uri] = s.[uri],
+					[name] = s.[name],
+					[count] = ISNULL(sv.[count], 0)
+				FROM [style] s
+					LEFT JOIN (
+							SELECT
+								[genreId],
+								[styleId],
+								[count] = COUNT(DISTINCT [videoId])
+							FROM [review]
+							GROUP BY [genreId], [styleId]
+						) sv ON s.[genreId] = sv.[genreId] AND s.[id] = sv.[styleId]
+				WHERE s.[genreId] = g.[id]
+				ORDER BY s.[sort]
+				FOR XML PATH (N'styles'), TYPE
+			)
+	FROM [genre] g
+		LEFT JOIN (
+				SELECT
+					[genreId],
+					[count] = COUNT(DISTINCT [videoId])
+				FROM [review]
+				GROUP BY [genreId]
+			) gv ON g.[id] = gv.[genreId]
+	ORDER BY g.[name]
+	FOR XML PATH (N'genres'), ROOT (N'data')
+	RETURN
+END
+GO
+
 CREATE PROCEDURE [apiVideos](
-	@genre NVARCHAR(10) = NULL,
-	@style NVARCHAR(10) = NULL,
+	@genreUri NVARCHAR(10) = NULL,
+	@styleUri NVARCHAR(10) = NULL,
 	@period NCHAR(1) = NULL,
 	@favourites BIT = 0,
 	@userId NVARCHAR(25) = NULL
@@ -623,9 +669,9 @@ AS
 BEGIN
 	SET NOCOUNT ON
 	DECLARE @oldest DATETIMEOFFSET = CASE @period
-			WHEN N'W' THEN DATEADD(day, -7, GETUTCDATE())
-			WHEN N'M' THEN DATEADD(month, -1, GETUTCDATE())
-			WHEN N'Y' THEN DATEADD(year, -1, GETUTCDATE())
+			WHEN N'weekly' THEN DATEADD(day, -7, GETUTCDATE())
+			WHEN N'monthly' THEN DATEADD(month, -1, GETUTCDATE())
+			WHEN N'yearly' THEN DATEADD(year, -1, GETUTCDATE())
 		END
 	;WITH XMLNAMESPACES (N'http://james.newtonking.com/projects/json' AS [json]),
 	[reviews] AS (
@@ -640,8 +686,8 @@ BEGIN
 			FROM [review] rvw
 				JOIN [genre] g ON rvw.[genreId] = g.[id]
 				JOIN [style] s ON rvw.[genreId] = s.[genreId] AND rvw.[styleId] = s.[id]
-			WHERE (g.[code] = @genre OR @genre IS NULL)
-				AND (s.[code] = @style OR @style IS NULL)
+			WHERE (g.[uri] = @genreUri OR @genreUri IS NULL)
+				AND (s.[uri] = @styleUri OR @styleUri IS NULL)
 				AND (rvw.[dateReviewed] >= @oldest OR @oldest IS NULL)
 			GROUP BY rvw.[videoId], rvw.[genreId]
 		)
@@ -650,8 +696,8 @@ BEGIN
 				SELECT ISNULL((
 							SELECT ISNULL(s.[name], g.[name])
 							FROM [genre] g
-								LEFT JOIN [style] s ON g.[id] = s.[genreId] AND s.[code] = @style
-							WHERE g.[code] = @genre
+								LEFT JOIN [style] s ON g.[id] = s.[genreId] AND s.[uri] = @styleUri
+							WHERE g.[uri] = @genreUri
 						), N'All Genres')
 				FOR XML PATH (N'')
 			),
@@ -682,10 +728,10 @@ BEGIN
 	RETURN
 END
 GO
-
+/*
 EXEC [apiVideos] N'bachata', N'moderna'
 
-DECLARE @genre NVARCHAR(10), @style NVARCHAR(10), @popularity NCHAR(1)= N'W'
+DECLARE @genreUri NVARCHAR(10), @styleUri NVARCHAR(10), @popularity NCHAR(1)= N'W'
 
 SELECT
 	[videoId] = rvw.[videoId],
@@ -701,7 +747,8 @@ FROM [review] rvw
 		END)) p ([since])
 	CROSS APPLY (VALUES (CONVERT(BIT, CASE
 			WHEN (rvw.[dateReviewed] >= p.[since] OR p.[since] IS NULL)
-				AND (g.[code] = @genre OR @genre IS NULL)
-				AND (s.[code] = @style OR @style IS NULL)
+				AND (g.[uri] = @genreUri OR @genreUri IS NULL)
+				AND (s.[uri] = @styleUri OR @styleUri IS NULL)
 			THEN 1 ELSE 0 END))) a ([applicable])
-WHERE g.[code] = @genre OR @genre IS NULL
+WHERE g.[uri] = @genreUri OR @genreUri IS NULL
+*/
