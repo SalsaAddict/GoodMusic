@@ -51,9 +51,9 @@ var GoodMusic;
     var Authentication;
     (function (Authentication) {
         var Service = (function () {
-            function Service($gmdb, $window, $route, $log) {
+            function Service($database, $window, $route, $log) {
                 var _this = this;
-                this.$gmdb = $gmdb;
+                this.$database = $database;
                 this.$window = $window;
                 this.$route = $route;
                 this.$log = $log;
@@ -88,7 +88,7 @@ var GoodMusic;
                         try {
                             if (authResponse.status === "connected") {
                                 FB.api("/me", { fields: ["id", "first_name", "last_name", "gender"] }, function (response) {
-                                    $gmdb.$execute("apiLogin", {
+                                    $database.$execute("apiLogin", {
                                         userId: { value: response.id },
                                         forename: { value: response.first_name },
                                         surname: { value: response.last_name },
@@ -127,7 +127,7 @@ var GoodMusic;
                 this.$log.debug("gm:deauthenticate", data);
                 this.$route.reload();
             };
-            Service.$inject = ["$gmdb", "$window", "$route", "$log"];
+            Service.$inject = ["$database", "$window", "$route", "$log"];
             return Service;
         }());
         Authentication.Service = Service;
@@ -135,30 +135,69 @@ var GoodMusic;
     var Playlist;
     (function (Playlist) {
         var Service = (function () {
-            function Service($gmauth, $gmdb) {
-                this.$gmauth = $gmauth;
-                this.$gmdb = $gmdb;
+            function Service($authentication, $database) {
+                this.$authentication = $authentication;
+                this.$database = $database;
+                this.$data = {};
             }
-            Service.prototype.clear = function () { delete this.parameters, this.title, this.videos; };
+            Object.defineProperty(Service.prototype, "title", {
+                get: function () { return this.$data.title || "Good Music"; },
+                enumerable: true,
+                configurable: true
+            });
+            Object.defineProperty(Service.prototype, "videos", {
+                get: function () {
+                    if (!this.$data) {
+                        return [];
+                    }
+                    if (!angular.isArray(this.$data.videos)) {
+                        return [];
+                    }
+                    return this.$data.videos;
+                },
+                enumerable: true,
+                configurable: true
+            });
+            Object.defineProperty(Service.prototype, "count", {
+                get: function () { return this.videos.length; },
+                enumerable: true,
+                configurable: true
+            });
+            Object.defineProperty(Service.prototype, "index", {
+                get: function () {
+                    if (this.count === 0) {
+                        return -1;
+                    }
+                    if (this.$data.index >= this.count - 1) {
+                        return this.count;
+                    }
+                    return this.$data.index || 0;
+                },
+                set: function (value) { this.$data.index = value; },
+                enumerable: true,
+                configurable: true
+            });
             Service.prototype.load = function (parameters) {
                 var _this = this;
-                this.$gmdb.$execute("apiPlaylist", {
+                this.$database.$execute("apiPlaylist", {
                     period: { value: parameters.period || null },
                     genreUri: { value: parameters.genreUri || null },
                     styleUri: { value: parameters.styleUri || null },
-                    userId: { value: (this.$gmauth.user) ? this.$gmauth.user.id || null : null }
+                    userId: { value: (this.$authentication.user) ? this.$authentication.user.id || null : null }
                 }).then(function (response) {
                     if (response.success) {
-                        _this.parameters = response.data.parameters;
-                        _this.title = response.data.title;
-                        _this.videos = response.data.videos;
+                        _this.$data = {
+                            parameters: response.data.parameters,
+                            title: response.data.title,
+                            videos: response.data.videos
+                        };
                     }
                     else {
-                        _this.clear();
+                        _this.$data = {};
                     }
-                });
+                }, angular.noop);
             };
-            Service.$inject = ["$gmauth", "$gmdb"];
+            Service.$inject = ["$authentication", "$database"];
             return Service;
         }());
         Playlist.Service = Service;
@@ -170,15 +209,15 @@ var GoodMusic;
     var Menu;
     (function (Menu) {
         var Controller = (function () {
-            function Controller($scope, $route, $gmauth, $gmplaylist) {
+            function Controller($scope, $route, $authentication, $playlist) {
                 var _this = this;
                 this.$scope = $scope;
                 this.$route = $route;
-                this.$gmauth = $gmauth;
-                this.$gmplaylist = $gmplaylist;
+                this.$authentication = $authentication;
+                this.$playlist = $playlist;
                 this.collapsed = true;
-                this.login = this.$gmauth.login;
-                this.logout = this.$gmauth.logout;
+                this.login = this.$authentication.login;
+                this.logout = this.$authentication.logout;
                 $scope.$on("$routeChangeSuccess", function () { _this.collapsed = true; });
             }
             Object.defineProperty(Controller.prototype, "title", {
@@ -188,7 +227,7 @@ var GoodMusic;
                         return defaultTitle;
                     }
                     switch (this.$route.current.name) {
-                        case "videos": return this.$gmplaylist.title;
+                        case "videos": return this.$playlist.title;
                         default: return defaultTitle;
                     }
                 },
@@ -197,7 +236,7 @@ var GoodMusic;
             });
             Controller.prototype.toggle = function () { this.collapsed = !this.collapsed; };
             Object.defineProperty(Controller.prototype, "authenticated", {
-                get: function () { return this.$gmauth.authenticated; },
+                get: function () { return this.$authentication.authenticated; },
                 enumerable: true,
                 configurable: true
             });
@@ -206,12 +245,12 @@ var GoodMusic;
                     if (!this.authenticated) {
                         return;
                     }
-                    return this.$gmauth.user.name;
+                    return this.$authentication.user.name;
                 },
                 enumerable: true,
                 configurable: true
             });
-            Controller.$inject = ["$scope", "$route", "$gmauth", "$gmplaylist"];
+            Controller.$inject = ["$scope", "$route", "$authentication", "$playlist"];
             return Controller;
         }());
         Menu.Controller = Controller;
@@ -219,9 +258,9 @@ var GoodMusic;
     var Search;
     (function (Search) {
         var Controller = (function () {
-            function Controller($gmdb) {
+            function Controller($database) {
                 var _this = this;
-                this.$gmdb = $gmdb;
+                this.$database = $database;
                 this.periods = [
                     { id: "weekly", description: "Week" },
                     { id: "monthly", description: "Month" },
@@ -237,13 +276,13 @@ var GoodMusic;
             };
             Controller.prototype.fetchGenres = function () {
                 var _this = this;
-                return this.$gmdb.$execute("apiSearch").then(function (response) {
+                return this.$database.$execute("apiSearch").then(function (response) {
                     _this.genres = response.data.genres;
                     _this.genres[0].expanded = true;
                     return _this.genres;
                 }, angular.noop);
             };
-            Controller.$inject = ["$gmdb"];
+            Controller.$inject = ["$database"];
             return Controller;
         }());
         Search.Controller = Controller;
@@ -251,34 +290,34 @@ var GoodMusic;
     var Videos;
     (function (Videos) {
         var Controller = (function () {
-            function Controller($routeParams, $gmplaylist, $anchorScroll) {
+            function Controller($routeParams, $playlist, $anchorScroll) {
                 this.$routeParams = $routeParams;
-                this.$gmplaylist = $gmplaylist;
+                this.$playlist = $playlist;
                 this.$anchorScroll = $anchorScroll;
                 this.page = 1;
                 this.pageSize = 12;
-                $gmplaylist.load(this.$routeParams);
+                $playlist.load(this.$routeParams);
             }
             Object.defineProperty(Controller.prototype, "videos", {
-                get: function () { return this.$gmplaylist.videos; },
+                get: function () { return this.$playlist.videos; },
                 enumerable: true,
                 configurable: true
             });
             Object.defineProperty(Controller.prototype, "count", {
-                get: function () { return this.videos.length; },
+                get: function () { return this.$playlist.count; },
                 enumerable: true,
                 configurable: true
             });
-            Controller.$inject = ["$routeParams", "$gmplaylist", "$anchorScroll"];
+            Controller.$inject = ["$routeParams", "$playlist", "$anchorScroll"];
             return Controller;
         }());
         Videos.Controller = Controller;
     })(Videos = GoodMusic.Videos || (GoodMusic.Videos = {}));
 })(GoodMusic || (GoodMusic = {}));
 var gm = angular.module("gm", ["ngRoute", "ngAria", "ngAnimate", "ui.bootstrap"]);
-gm.service("$gmdb", GoodMusic.Database.Service);
-gm.service("$gmauth", GoodMusic.Authentication.Service);
-gm.service("$gmplaylist", GoodMusic.Playlist.Service);
+gm.service("$database", GoodMusic.Database.Service);
+gm.service("$authentication", GoodMusic.Authentication.Service);
+gm.service("$playlist", GoodMusic.Playlist.Service);
 gm.controller("menuController", GoodMusic.Menu.Controller);
 gm.config(["$logProvider", "$routeProvider", function ($logProvider, $routeProvider) {
         $logProvider.debugEnabled(GoodMusic.debugEnabled);
@@ -299,6 +338,6 @@ gm.config(["$logProvider", "$routeProvider", function ($logProvider, $routeProvi
             .otherwise({ redirectTo: "/home" })
             .caseInsensitiveMatch = true;
     }]);
-gm.run(["$gmauth", "$log", function ($gmauth, $log) {
+gm.run(["$authentication", "$log", function ($authentication, $log) {
         $log.debug("gm:run");
     }]);

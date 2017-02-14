@@ -65,9 +65,9 @@ module GoodMusic {
         interface IFacebookUser { id: string; first_name: string; last_name: string; gender: "male" | "female"; }
         export interface IUser { id: string; name?: string; }
         export class Service {
-            static $inject: string[] = ["$gmdb", "$window", "$route", "$log"];
+            static $inject: string[] = ["$database", "$window", "$route", "$log"];
             constructor(
-                private $gmdb: Database.Service,
+                private $database: Database.Service,
                 private $window: IWindowService,
                 private $route: angular.route.IRouteService,
                 private $log: angular.ILogService) {
@@ -78,7 +78,7 @@ module GoodMusic {
                         try {
                             if (authResponse.status === "connected") {
                                 FB.api("/me", { fields: ["id", "first_name", "last_name", "gender"] }, (response: IFacebookUser) => {
-                                    $gmdb.$execute("apiLogin", {
+                                    $database.$execute("apiLogin", {
                                         userId: { value: response.id },
                                         forename: { value: response.first_name },
                                         surname: { value: response.last_name },
@@ -120,28 +120,46 @@ module GoodMusic {
         export type Period = "all" | "weekly" | "monthly" | "yearly";
         export interface IParameters { period: Period; genreUri: string; styleUri?: string; }
         export interface IVideo { videoId: string; title: string; genre: string; }
+        interface IData {
+            parameters?: IParameters;
+            title?: string;
+            videos?: IVideo[];
+            index?: number;
+        }
         export class Service {
-            static $inject: string[] = ["$gmauth", "$gmdb"];
+            static $inject: string[] = ["$authentication", "$database"];
             constructor(
-                private $gmauth: Authentication.Service,
-                private $gmdb: Database.Service) { }
-            public parameters: IParameters;
-            public title: string;
-            public videos: IVideo[];
-            public clear() { delete this.parameters, this.title, this.videos; }
+                private $authentication: Authentication.Service,
+                private $database: Database.Service) { }
+            private $data: IData = {};
+            public get title(): string { return this.$data.title || "Good Music"; }
+            public get videos(): IVideo[] {
+                if (!this.$data) { return []; }
+                if (!angular.isArray(this.$data.videos)) { return []; }
+                return this.$data.videos;
+            }
+            public get count(): number { return this.videos.length; }
+            public set index(value: number) { this.$data.index = value; }
+            public get index(): number {
+                if (this.count === 0) { return -1; }
+                if (this.$data.index >= this.count - 1) { return this.count; }
+                return this.$data.index || 0;
+            }
             public load(parameters: IParameters): void {
-                this.$gmdb.$execute("apiPlaylist", {
+                this.$database.$execute("apiPlaylist", {
                     period: { value: parameters.period || null },
                     genreUri: { value: parameters.genreUri || null },
                     styleUri: { value: parameters.styleUri || null },
-                    userId: { value: (this.$gmauth.user) ? this.$gmauth.user.id || null : null }
+                    userId: { value: (this.$authentication.user) ? this.$authentication.user.id || null : null }
                 }).then((response: Database.IResponse) => {
                     if (response.success) {
-                        this.parameters = response.data.parameters;
-                        this.title = response.data.title;
-                        this.videos = response.data.videos;
-                    } else { this.clear(); }
-                });
+                        this.$data = {
+                            parameters: response.data.parameters,
+                            title: response.data.title,
+                            videos: response.data.videos
+                        };
+                    } else { this.$data = {}; }
+                }, angular.noop);
             }
         }
     }
@@ -151,31 +169,31 @@ module GoodMusic {
     "option strict";
     export module Menu {
         export class Controller {
-            static $inject: string[] = ["$scope", "$route", "$gmauth", "$gmplaylist"];
+            static $inject: string[] = ["$scope", "$route", "$authentication", "$playlist"];
             constructor(
                 private $scope: angular.IScope,
                 private $route: angular.route.IRouteService,
-                public $gmauth: Authentication.Service,
-                private $gmplaylist: Playlist.Service) {
+                public $authentication: Authentication.Service,
+                private $playlist: Playlist.Service) {
                 $scope.$on("$routeChangeSuccess", () => { this.collapsed = true; });
             }
             public get title(): string {
                 let defaultTitle: string = "Good Music";
                 if (!this.$route.current) { return defaultTitle; }
                 switch (this.$route.current.name) {
-                    case "videos": return this.$gmplaylist.title;
+                    case "videos": return this.$playlist.title;
                     default: return defaultTitle;
                 }
             }
             public collapsed: boolean = true;
             public toggle(): void { this.collapsed = !this.collapsed; }
-            public get authenticated(): boolean { return this.$gmauth.authenticated; }
+            public get authenticated(): boolean { return this.$authentication.authenticated; }
             public get username(): string {
                 if (!this.authenticated) { return; }
-                return this.$gmauth.user.name;
+                return this.$authentication.user.name;
             }
-            public login: Function = this.$gmauth.login;
-            public logout: Function = this.$gmauth.logout;
+            public login: Function = this.$authentication.login;
+            public logout: Function = this.$authentication.logout;
         }
     }
     export module Search {
@@ -183,8 +201,8 @@ module GoodMusic {
         interface IStyle { id: string; uri: string; name: string; count: string; }
         interface IGenre { id: string; uri: string; name: string; count: string; styles: IStyle[]; expanded: boolean; }
         export class Controller {
-            static $inject: string[] = ["$gmdb"];
-            constructor(private $gmdb: Database.Service) {
+            static $inject: string[] = ["$database"];
+            constructor(private $database: Database.Service) {
                 this.fetchGenres().then((genres: IGenre[]) => { this.expand(genres[0]); });
             }
             public periods: IPopularity[] = [
@@ -200,7 +218,7 @@ module GoodMusic {
                 genre.expanded = true;
             }
             public fetchGenres(): angular.IPromise<IGenre[]> {
-                return this.$gmdb.$execute("apiSearch").then((response: Database.IResponse) => {
+                return this.$database.$execute("apiSearch").then((response: Database.IResponse) => {
                     this.genres = response.data.genres;
                     this.genres[0].expanded = true;
                     return this.genres;
@@ -211,26 +229,26 @@ module GoodMusic {
     export module Videos {
         interface IRouteParams extends angular.route.IRouteParamsService, Playlist.IParameters { }
         export class Controller {
-            static $inject: string[] = ["$routeParams", "$gmplaylist", "$anchorScroll"];
+            static $inject: string[] = ["$routeParams", "$playlist", "$anchorScroll"];
             constructor(
                 private $routeParams: IRouteParams,
-                public $gmplaylist: Playlist.Service,
+                private $playlist: Playlist.Service,
                 public $anchorScroll: angular.IAnchorScrollService) {
-                $gmplaylist.load(this.$routeParams);
+                $playlist.load(this.$routeParams);
             }
             public page: number = 1;
             public pageSize: number = 12;
-            public get videos(): Playlist.IVideo[] { return this.$gmplaylist.videos; }
-            public get count(): number { return this.videos.length; }
+            public get videos(): Playlist.IVideo[] { return this.$playlist.videos; }
+            public get count(): number { return this.$playlist.count; }
         }
     }
 }
 
 let gm: angular.IModule = angular.module("gm", ["ngRoute", "ngAria", "ngAnimate", "ui.bootstrap"]);
 
-gm.service("$gmdb", GoodMusic.Database.Service);
-gm.service("$gmauth", GoodMusic.Authentication.Service);
-gm.service("$gmplaylist", GoodMusic.Playlist.Service);
+gm.service("$database", GoodMusic.Database.Service);
+gm.service("$authentication", GoodMusic.Authentication.Service);
+gm.service("$playlist", GoodMusic.Playlist.Service);
 gm.controller("menuController", GoodMusic.Menu.Controller);
 
 gm.config(["$logProvider", "$routeProvider", function (
@@ -255,8 +273,8 @@ gm.config(["$logProvider", "$routeProvider", function (
         .caseInsensitiveMatch = true;
 }]);
 
-gm.run(["$gmauth", "$log", function (
-    $gmauth: GoodMusic.Authentication.Service,
+gm.run(["$authentication", "$log", function (
+    $authentication: GoodMusic.Authentication.Service,
     $log: angular.ILogService) {
     $log.debug("gm:run");
 }]);
