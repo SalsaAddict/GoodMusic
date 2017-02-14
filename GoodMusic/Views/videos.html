@@ -1,6 +1,13 @@
 ﻿<div class="container-fluid">
+    <div class="text-center">
+        <button type="button" class="btn btn-default btn-sm">
+            <i class="fa fa-fw fa-lg fa-play"></i>
+            <span>Play All</span>
+        </button>
+    </div>
+    <br />
     <div class="row">
-        <div ng-repeat="video in $videos | limitTo: $ctrl.pageSize : ($ctrl.page - 1) * $ctrl.pageSize" class="col-xs-12 col-sm-6 col-md-4 col-lg-3">
+        <div ng-repeat="video in $ctrl.videos | limitTo: $ctrl.pageSize : ($ctrl.page - 1) * $ctrl.pageSize" class="col-xs-12 col-sm-6 col-md-4 col-lg-3">
             <div class="thumbnail">
                 <div class="embed-responsive embed-responsive-16by9">
                     <img class="embed-responsive-item" ng-src="https://i.ytimg.com/vi/{{video.videoId}}/mqdefault.jpg" alt="{{video.title}}" />
@@ -11,10 +18,10 @@
             </div>
         </div>
     </div>
-    <div class="center-block" ng-if="$videos.length > $ctrl.pageSize">
+    <div class="center-block" ng-if="$ctrl.count > $ctrl.pageSize">
         <div class="text-center">
             <ul uib-pagination class="pagination-sm" ng-model="$ctrl.page"
-                total-items="$videos.length" items-per-page="$ctrl.pageSize"
+                total-items="$ctrl.count" items-per-page="$ctrl.pageSize"
                 rotate="true" force-ellipses="true"
                 boundary-links="true" boundary-link-numbers="true"
                 first-text="&laquo;" previous-text="&lt;" next-text="&gt;" last-text="&raquo;"

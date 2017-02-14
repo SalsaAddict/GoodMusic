@@ -5,7 +5,8 @@ GO
 SET NOCOUNT ON
 GO
 
-IF OBJECT_ID(N'apiVideos', N'P') IS NOT NULL DROP PROCEDURE [apiVideos]
+IF OBJECT_ID(N'apiPlaylist', N'P') IS NOT NULL DROP PROCEDURE [apiPlaylist]
+IF OBJECT_ID(N'apiPlaylistParameters', N'P') IS NOT NULL DROP PROCEDURE [apiPlaylistParameters]
 IF OBJECT_ID(N'apiSearch', N'P') IS NOT NULL DROP PROCEDURE [apiSearch]
 IF OBJECT_ID(N'apiExport', N'P') IS NOT NULL DROP PROCEDURE [apiExport]
 IF OBJECT_ID(N'apiImport', N'P') IS NOT NULL DROP PROCEDURE [apiImport]
@@ -658,16 +659,42 @@ BEGIN
 END
 GO
 
-CREATE PROCEDURE [apiVideos](
+CREATE PROCEDURE [apiPlaylistParameters](
+	@period NVARCHAR(10) = NULL OUTPUT,
+	@genreUri NVARCHAR(10) = NULL OUTPUT,
+	@styleUri NVARCHAR(10) = NULL OUTPUT
+)
+AS
+BEGIN
+	SET NOCOUNT ON
+	SET @period = ISNULL((
+			SELECT [period]
+			FROM (VALUES
+					(N'weekly'),
+					(N'monthly'),
+					(N'yearly')
+				) p ([period])
+			WHERE [period] = @period),
+		N'all')
+	SELECT @genreUri = g.[uri], @styleUri = s.[uri]
+	FROM [genre] g
+		LEFT JOIN [style] s ON g.[id] = s.[genreId] AND s.[uri] = @styleUri
+	WHERE g.[uri] = @genreUri
+	RETURN
+END
+GO
+
+CREATE PROCEDURE [apiPlaylist](
+	@period NVARCHAR(10) = NULL,
 	@genreUri NVARCHAR(10) = NULL,
 	@styleUri NVARCHAR(10) = NULL,
-	@period NCHAR(1) = NULL,
 	@favourites BIT = 0,
 	@userId NVARCHAR(25) = NULL
 )
 AS
 BEGIN
 	SET NOCOUNT ON
+	EXEC [apiPlaylistParameters] @period OUT, @genreUri OUT, @styleUri OUT
 	DECLARE @oldest DATETIMEOFFSET = CASE @period
 			WHEN N'weekly' THEN DATEADD(day, -7, GETUTCDATE())
 			WHEN N'monthly' THEN DATEADD(month, -1, GETUTCDATE())
@@ -692,7 +719,14 @@ BEGIN
 			GROUP BY rvw.[videoId], rvw.[genreId]
 		)
 	SELECT
-		[playlist] = (
+		( -- parameters
+				SELECT
+					[period] = @period,
+					[genreUri] = @genreUri,
+					[styleUri] = @styleUri
+				FOR XML PATH (N'parameters'), TYPE
+			),
+		[title] = (
 				SELECT ISNULL((
 							SELECT ISNULL(s.[name], g.[name])
 							FROM [genre] g
@@ -701,7 +735,7 @@ BEGIN
 						), N'All Genres')
 				FOR XML PATH (N'')
 			),
-		(
+		( -- videos
 				SELECT
 					[@json:Array] = N'true',
 					[rank] = r.[rank],

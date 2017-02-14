@@ -6,102 +6,163 @@ var GoodMusic;
     GoodMusic.debugEnabled = true;
     GoodMusic.fbAppId = "1574477942882037";
     GoodMusic.googleApiKey = "AIzaSyCtuJp3jsaJp3X6U8ZS_X5H8omiAw5QaHg";
-    var Service = (function () {
-        function Service($rootScope, $q, $http, $route, $log) {
-            var _this = this;
-            this.$rootScope = $rootScope;
-            this.$q = $q;
-            this.$http = $http;
-            this.$route = $route;
-            this.$log = $log;
-            this.$fbAuthResponseChange = function (response) {
-                _this.$log.debug("gm:fb:authResponseChange", response);
+})(GoodMusic || (GoodMusic = {}));
+var GoodMusic;
+(function (GoodMusic) {
+    "option strict";
+    var Database;
+    (function (Database) {
+        var Service = (function () {
+            function Service($q, $http, $log) {
+                this.$q = $q;
+                this.$http = $http;
+                this.$log = $log;
+            }
+            Service.prototype.$execute = function (name, parameters) {
+                var _this = this;
+                if (parameters === void 0) { parameters = {}; }
+                var procedure = { name: name, parameters: parameters }, deferred = this.$q.defer();
                 try {
-                    if (response.status === "connected") {
-                        FB.api("/me", { fields: ["id", "first_name", "last_name", "gender"] }, function (response) {
-                            _this.$rootScope.$user = { id: response.id };
-                            _this.$execute("apiLogin", {
-                                forename: { value: response.first_name },
-                                surname: { value: response.last_name },
-                                gender: { value: response.gender }
-                            }).then(function (response) {
-                                if (response.success) {
-                                    _this.$rootScope.$user = { id: response.data.id, name: response.data.name };
-                                    _this.$log.debug("gm:authenticate:true", _this.$rootScope.$user);
-                                    _this.$route.reload();
-                                }
-                                else {
-                                    _this.$deauthenticate();
-                                }
-                            });
+                    this.$http.post("execute.ashx", procedure).then(function (response) {
+                        deferred.resolve(response.data);
+                        if (!response.data.success) {
+                            _this.$log.error(response.data.data);
+                        }
+                        _this.$log.debug("gm:execute", procedure.name, {
+                            request: procedure,
+                            response: response.data.data
                         });
-                    }
-                    else
-                        _this.$deauthenticate(response.status);
-                }
-                catch (ex) {
-                    _this.$deauthenticate(ex.message);
-                }
-            };
-            this.$login = this.$rootScope.$login = function ($event) {
-                $event.preventDefault();
-                $event.stopPropagation();
-                try {
-                    FB.login(angular.noop);
-                }
-                catch (ex) {
-                    _this.$deauthenticate(ex.message);
-                }
-            };
-            this.$logout = this.$rootScope.$logout = function ($event) {
-                $event.preventDefault();
-                $event.stopPropagation();
-                try {
-                    FB.logout(angular.noop);
-                }
-                catch (ex) {
-                    _this.$deauthenticate(ex.message);
-                }
-            };
-            $log.debug("gm:service:init");
-        }
-        Service.prototype.$execute = function (name, parameters) {
-            var _this = this;
-            if (parameters === void 0) { parameters = {}; }
-            var procedure = { name: name, parameters: parameters }, deferred = this.$q.defer();
-            if (this.$rootScope.$user) {
-                parameters.userId = { value: this.$rootScope.$user.id || null };
-            }
-            try {
-                this.$http.post("execute.ashx", procedure).then(function (response) {
-                    deferred.resolve(response.data);
-                    if (!response.data.success) {
-                        _this.$log.error(response.data.data);
-                    }
-                    _this.$log.debug("gm:execute", procedure.name, {
-                        request: procedure,
-                        response: response.data.data
+                    }, function (response) {
+                        deferred.resolve({ success: false, data: response.statusText });
+                        _this.$log.error(response.status, response.statusText);
                     });
-                }, function (response) {
-                    deferred.resolve({ success: false, data: response.statusText });
-                    _this.$log.error(response.status, response.statusText);
+                }
+                catch (ex) {
+                    deferred.resolve({ success: false, data: ex });
+                    this.$log.error(ex.message);
+                }
+                return deferred.promise;
+            };
+            Service.$inject = ["$q", "$http", "$log"];
+            return Service;
+        }());
+        Database.Service = Service;
+    })(Database = GoodMusic.Database || (GoodMusic.Database = {}));
+    var Authentication;
+    (function (Authentication) {
+        var Service = (function () {
+            function Service($gmdb, $window, $route, $log) {
+                var _this = this;
+                this.$gmdb = $gmdb;
+                this.$window = $window;
+                this.$route = $route;
+                this.$log = $log;
+                this.login = function ($event) {
+                    if ($event) {
+                        $event.preventDefault();
+                        $event.stopPropagation();
+                    }
+                    try {
+                        FB.login(angular.noop);
+                    }
+                    catch (ex) {
+                        _this.deauthenticate(ex.message);
+                    }
+                };
+                this.logout = function ($event) {
+                    if ($event) {
+                        $event.preventDefault();
+                        $event.stopPropagation();
+                    }
+                    try {
+                        FB.logout(angular.noop);
+                    }
+                    catch (ex) {
+                        _this.deauthenticate(ex);
+                    }
+                };
+                $window.fbAsyncInit = function () {
+                    FB.init({ appId: GoodMusic.fbAppId, cookie: true, status: true, version: "v2.8" });
+                    FB.Event.subscribe('auth.authResponseChange', function (authResponse) {
+                        _this.$log.debug("gm:fb:authResponse", authResponse);
+                        try {
+                            if (authResponse.status === "connected") {
+                                FB.api("/me", { fields: ["id", "first_name", "last_name", "gender"] }, function (response) {
+                                    $gmdb.$execute("apiLogin", {
+                                        userId: { value: response.id },
+                                        forename: { value: response.first_name },
+                                        surname: { value: response.last_name },
+                                        gender: { value: response.gender }
+                                    }).then(function (response) {
+                                        if (response.success) {
+                                            _this.user = { id: response.data.id, name: response.data.name };
+                                            _this.$log.debug("gm:authenticate", _this.user);
+                                            _this.$route.reload();
+                                        }
+                                        else {
+                                            _this.deauthenticate(response.data);
+                                        }
+                                    });
+                                });
+                            }
+                            else {
+                                _this.deauthenticate(authResponse);
+                            }
+                        }
+                        catch (ex) {
+                            _this.deauthenticate(ex);
+                        }
+                    });
+                    $log.debug("gm:fb:init");
+                };
+                $log.debug("gm:auth:init");
+            }
+            Object.defineProperty(Service.prototype, "authenticated", {
+                get: function () { return (this.user) ? true : false; },
+                enumerable: true,
+                configurable: true
+            });
+            Service.prototype.deauthenticate = function (data) {
+                delete this.user;
+                this.$log.debug("gm:deauthenticate", data);
+                this.$route.reload();
+            };
+            Service.$inject = ["$gmdb", "$window", "$route", "$log"];
+            return Service;
+        }());
+        Authentication.Service = Service;
+    })(Authentication = GoodMusic.Authentication || (GoodMusic.Authentication = {}));
+    var Playlist;
+    (function (Playlist) {
+        var Service = (function () {
+            function Service($gmauth, $gmdb) {
+                this.$gmauth = $gmauth;
+                this.$gmdb = $gmdb;
+            }
+            Service.prototype.clear = function () { delete this.parameters, this.title, this.videos; };
+            Service.prototype.load = function (parameters) {
+                var _this = this;
+                this.$gmdb.$execute("apiPlaylist", {
+                    period: { value: parameters.period || null },
+                    genreUri: { value: parameters.genreUri || null },
+                    styleUri: { value: parameters.styleUri || null },
+                    userId: { value: (this.$gmauth.user) ? this.$gmauth.user.id || null : null }
+                }).then(function (response) {
+                    if (response.success) {
+                        _this.parameters = response.data.parameters;
+                        _this.title = response.data.title;
+                        _this.videos = response.data.videos;
+                    }
+                    else {
+                        _this.clear();
+                    }
                 });
-            }
-            catch (ex) {
-                deferred.resolve({ success: false, data: ex });
-                this.$log.error(ex.message);
-            }
-            return deferred.promise;
-        };
-        Service.prototype.$deauthenticate = function (reason) {
-            delete this.$rootScope.$user;
-            this.$log.debug("gm:authenticate:false", reason);
-            this.$route.reload();
-        };
-        Service.$inject = ["$rootScope", "$q", "$http", "$route", "$log"];
-        return Service;
-    }());
-    GoodMusic.Service = Service;
+            };
+            Service.$inject = ["$gmauth", "$gmdb"];
+            return Service;
+        }());
+        Playlist.Service = Service;
+    })(Playlist = GoodMusic.Playlist || (GoodMusic.Playlist = {}));
 })(GoodMusic || (GoodMusic = {}));
 var GoodMusic;
 (function (GoodMusic) {
@@ -109,14 +170,16 @@ var GoodMusic;
     var Menu;
     (function (Menu) {
         var Controller = (function () {
-            function Controller($scope, $route) {
+            function Controller($scope, $route, $gmauth, $gmplaylist) {
                 var _this = this;
                 this.$scope = $scope;
                 this.$route = $route;
+                this.$gmauth = $gmauth;
+                this.$gmplaylist = $gmplaylist;
                 this.collapsed = true;
-                $scope.$on("$routeChangeSuccess", function () {
-                    _this.collapsed = true;
-                });
+                this.login = this.$gmauth.login;
+                this.logout = this.$gmauth.logout;
+                $scope.$on("$routeChangeSuccess", function () { _this.collapsed = true; });
             }
             Object.defineProperty(Controller.prototype, "title", {
                 get: function () {
@@ -125,7 +188,7 @@ var GoodMusic;
                         return defaultTitle;
                     }
                     switch (this.$route.current.name) {
-                        case "videos": return this.$scope.$playlist || "All Genres";
+                        case "videos": return this.$gmplaylist.title;
                         default: return defaultTitle;
                     }
                 },
@@ -133,7 +196,22 @@ var GoodMusic;
                 configurable: true
             });
             Controller.prototype.toggle = function () { this.collapsed = !this.collapsed; };
-            Controller.$inject = ["$scope", "$route"];
+            Object.defineProperty(Controller.prototype, "authenticated", {
+                get: function () { return this.$gmauth.authenticated; },
+                enumerable: true,
+                configurable: true
+            });
+            Object.defineProperty(Controller.prototype, "username", {
+                get: function () {
+                    if (!this.authenticated) {
+                        return;
+                    }
+                    return this.$gmauth.user.name;
+                },
+                enumerable: true,
+                configurable: true
+            });
+            Controller.$inject = ["$scope", "$route", "$gmauth", "$gmplaylist"];
             return Controller;
         }());
         Menu.Controller = Controller;
@@ -141,10 +219,9 @@ var GoodMusic;
     var Search;
     (function (Search) {
         var Controller = (function () {
-            function Controller($rootScope, $gm) {
+            function Controller($gmdb) {
                 var _this = this;
-                this.$rootScope = $rootScope;
-                this.$gm = $gm;
+                this.$gmdb = $gmdb;
                 this.periods = [
                     { id: "weekly", description: "Week" },
                     { id: "monthly", description: "Month" },
@@ -160,13 +237,13 @@ var GoodMusic;
             };
             Controller.prototype.fetchGenres = function () {
                 var _this = this;
-                return this.$gm.$execute("apiSearch").then(function (response) {
+                return this.$gmdb.$execute("apiSearch").then(function (response) {
                     _this.genres = response.data.genres;
                     _this.genres[0].expanded = true;
                     return _this.genres;
                 }, angular.noop);
             };
-            Controller.$inject = ["$rootScope", "$gm"];
+            Controller.$inject = ["$gmdb"];
             return Controller;
         }());
         Search.Controller = Controller;
@@ -174,50 +251,34 @@ var GoodMusic;
     var Videos;
     (function (Videos) {
         var Controller = (function () {
-            function Controller($rootScope, $routeParams, $gm, $anchorScroll) {
-                this.$rootScope = $rootScope;
+            function Controller($routeParams, $gmplaylist, $anchorScroll) {
                 this.$routeParams = $routeParams;
-                this.$gm = $gm;
+                this.$gmplaylist = $gmplaylist;
                 this.$anchorScroll = $anchorScroll;
                 this.page = 1;
-                this.pageSize = 10;
-                this.fetchVideos();
+                this.pageSize = 12;
+                $gmplaylist.load(this.$routeParams);
             }
-            Object.defineProperty(Controller.prototype, "period", {
-                get: function () { return this.$routeParams.period || "week"; },
+            Object.defineProperty(Controller.prototype, "videos", {
+                get: function () { return this.$gmplaylist.videos; },
                 enumerable: true,
                 configurable: true
             });
-            Object.defineProperty(Controller.prototype, "genreUri", {
-                get: function () { return this.$routeParams.genreUri || null; },
+            Object.defineProperty(Controller.prototype, "count", {
+                get: function () { return this.videos.length; },
                 enumerable: true,
                 configurable: true
             });
-            Object.defineProperty(Controller.prototype, "styleUri", {
-                get: function () { return this.$routeParams.styleUri || null; },
-                enumerable: true,
-                configurable: true
-            });
-            Controller.prototype.fetchVideos = function () {
-                var _this = this;
-                this.$gm.$execute("apiVideos", {
-                    period: { value: this.period },
-                    genreUri: { value: this.genreUri },
-                    styleUri: { value: this.styleUri }
-                }).then(function (response) {
-                    _this.$rootScope.$playlist = response.data.playlist;
-                    _this.$rootScope.$videos = response.data.videos;
-                }, angular.noop);
-                var x = 1;
-            };
-            Controller.$inject = ["$rootScope", "$routeParams", "$gm", "$anchorScroll"];
+            Controller.$inject = ["$routeParams", "$gmplaylist", "$anchorScroll"];
             return Controller;
         }());
         Videos.Controller = Controller;
     })(Videos = GoodMusic.Videos || (GoodMusic.Videos = {}));
 })(GoodMusic || (GoodMusic = {}));
 var gm = angular.module("gm", ["ngRoute", "ngAria", "ngAnimate", "ui.bootstrap"]);
-gm.service("$gm", GoodMusic.Service);
+gm.service("$gmdb", GoodMusic.Database.Service);
+gm.service("$gmauth", GoodMusic.Authentication.Service);
+gm.service("$gmplaylist", GoodMusic.Playlist.Service);
 gm.controller("menuController", GoodMusic.Menu.Controller);
 gm.config(["$logProvider", "$routeProvider", function ($logProvider, $routeProvider) {
         $logProvider.debugEnabled(GoodMusic.debugEnabled);
@@ -238,12 +299,6 @@ gm.config(["$logProvider", "$routeProvider", function ($logProvider, $routeProvi
             .otherwise({ redirectTo: "/home" })
             .caseInsensitiveMatch = true;
     }]);
-gm.run(["$log", "$window", "$rootScope", "$gm", function ($log, $window, $rootScope, $gm) {
-        $window.fbAsyncInit = function () {
-            FB.init({ appId: GoodMusic.fbAppId, cookie: true, status: true, version: "v2.8" });
-            FB.Event.subscribe('auth.authResponseChange', $gm.$fbAuthResponseChange);
-            $log.debug("gm:fbAsyncInit");
-        };
-        $rootScope.$authenticated = false;
+gm.run(["$gmauth", "$log", function ($gmauth, $log) {
         $log.debug("gm:run");
     }]);
