@@ -140,8 +140,23 @@ var GoodMusic;
                 this.$database = $database;
                 this.$data = {};
             }
+            Object.defineProperty(Service.prototype, "loaded", {
+                get: function () { return angular.isDefined(this.$data.videos); },
+                enumerable: true,
+                configurable: true
+            });
             Object.defineProperty(Service.prototype, "title", {
                 get: function () { return this.$data.title || "Good Music"; },
+                enumerable: true,
+                configurable: true
+            });
+            Object.defineProperty(Service.prototype, "parameters", {
+                get: function () {
+                    if (!this.$data) {
+                        return {};
+                    }
+                    return this.$data.parameters || {};
+                },
                 enumerable: true,
                 configurable: true
             });
@@ -179,7 +194,7 @@ var GoodMusic;
             });
             Service.prototype.load = function (parameters) {
                 var _this = this;
-                this.$database.$execute("apiPlaylist", {
+                return this.$database.$execute("apiPlaylist", {
                     period: { value: parameters.period || null },
                     genreUri: { value: parameters.genreUri || null },
                     styleUri: { value: parameters.styleUri || null },
@@ -195,6 +210,7 @@ var GoodMusic;
                     else {
                         _this.$data = {};
                     }
+                    return _this.parameters;
                 }, angular.noop);
             };
             Service.$inject = ["$authentication", "$database"];
@@ -227,7 +243,8 @@ var GoodMusic;
                         return defaultTitle;
                     }
                     switch (this.$route.current.name) {
-                        case "videos": return this.$playlist.title;
+                        case "load":
+                        case "list": return this.$playlist.title;
                         default: return defaultTitle;
                     }
                 },
@@ -261,16 +278,13 @@ var GoodMusic;
             function Controller($database) {
                 var _this = this;
                 this.$database = $database;
-                this.periods = [
-                    { id: "weekly", description: "Week" },
-                    { id: "monthly", description: "Month" },
-                    { id: "yearly", description: "Year" },
-                    { id: "all", description: "Ever" }
-                ];
-                this.period = this.periods[0].id;
                 this.fetchGenres().then(function (genres) { _this.expand(genres[0]); });
             }
-            Controller.prototype.expand = function (genre) {
+            Controller.prototype.expand = function (genre, $event) {
+                if ($event) {
+                    $event.preventDefault();
+                    $event.stopPropagation();
+                }
                 this.genres.forEach(function (item) { item.expanded = false; });
                 genre.expanded = true;
             };
@@ -290,14 +304,48 @@ var GoodMusic;
     var Videos;
     (function (Videos) {
         var Controller = (function () {
-            function Controller($routeParams, $playlist, $anchorScroll) {
+            function Controller($location, $route, $routeParams, $playlist, $anchorScroll, $log) {
+                this.$location = $location;
+                this.$route = $route;
                 this.$routeParams = $routeParams;
                 this.$playlist = $playlist;
                 this.$anchorScroll = $anchorScroll;
+                this.$log = $log;
                 this.page = 1;
                 this.pageSize = 12;
-                $playlist.load(this.$routeParams);
+                this.periods = ["all", "weekly", "monthly", "yearly"];
+                switch (this.action) {
+                    case "load":
+                        this.load(this.$routeParams);
+                        break;
+                    case "list":
+                        if (!$playlist.loaded) {
+                            $log.warn("gm:playlist:nolist");
+                            $location.path("/search");
+                        }
+                        break;
+                }
+                //this.page = Math.floor($playlist.index / this.pageSize);
             }
+            Controller.prototype.load = function (parameters) {
+                var _this = this;
+                this.$playlist.load(parameters)
+                    .then(function (newParams) {
+                    if (!angular.equals(parameters, newParams)) {
+                        _this.$route.updateParams(newParams);
+                    }
+                }, angular.noop);
+            };
+            Object.defineProperty(Controller.prototype, "action", {
+                get: function () { return this.$route.current.name; },
+                enumerable: true,
+                configurable: true
+            });
+            Object.defineProperty(Controller.prototype, "title", {
+                get: function () { return this.$playlist.title; },
+                enumerable: true,
+                configurable: true
+            });
             Object.defineProperty(Controller.prototype, "videos", {
                 get: function () { return this.$playlist.videos; },
                 enumerable: true,
@@ -308,7 +356,18 @@ var GoodMusic;
                 enumerable: true,
                 configurable: true
             });
-            Controller.$inject = ["$routeParams", "$playlist", "$anchorScroll"];
+            Object.defineProperty(Controller.prototype, "period", {
+                get: function () { return this.$playlist.parameters.period || "all"; },
+                enumerable: true,
+                configurable: true
+            });
+            Controller.prototype.setPeriod = function (period) {
+                var parameters = this.$playlist.parameters;
+                parameters.period = period;
+                this.$route.updateParams(parameters);
+            };
+            Controller.prototype.top = function () { this.$anchorScroll(); };
+            Controller.$inject = ["$location", "$route", "$routeParams", "$playlist", "$anchorScroll", "$log"];
             return Controller;
         }());
         Videos.Controller = Controller;
@@ -330,7 +389,13 @@ gm.config(["$logProvider", "$routeProvider", function ($logProvider, $routeProvi
             controllerAs: "$ctrl"
         })
             .when("/videos/:period/:genreUri/:styleUri?", {
-            name: "videos",
+            name: "load",
+            templateUrl: "Views/videos.html",
+            controller: GoodMusic.Videos.Controller,
+            controllerAs: "$ctrl"
+        })
+            .when("/videos", {
+            name: "list",
             templateUrl: "Views/videos.html",
             controller: GoodMusic.Videos.Controller,
             controllerAs: "$ctrl"

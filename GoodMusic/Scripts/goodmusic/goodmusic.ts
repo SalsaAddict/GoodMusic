@@ -118,7 +118,7 @@ module GoodMusic {
     }
     export module Playlist {
         export type Period = "all" | "weekly" | "monthly" | "yearly";
-        export interface IParameters { period: Period; genreUri: string; styleUri?: string; }
+        export interface IParameters extends angular.route.IRouteParamsService { period?: Period; genreUri?: string; styleUri?: string; }
         export interface IVideo { videoId: string; title: string; genre: string; }
         interface IData {
             parameters?: IParameters;
@@ -132,7 +132,12 @@ module GoodMusic {
                 private $authentication: Authentication.Service,
                 private $database: Database.Service) { }
             private $data: IData = {};
+            public get loaded(): boolean { return angular.isDefined(this.$data.videos); }
             public get title(): string { return this.$data.title || "Good Music"; }
+            public get parameters(): IParameters {
+                if (!this.$data) { return {}; }
+                return this.$data.parameters || {};
+            }
             public get videos(): IVideo[] {
                 if (!this.$data) { return []; }
                 if (!angular.isArray(this.$data.videos)) { return []; }
@@ -145,8 +150,8 @@ module GoodMusic {
                 if (this.$data.index >= this.count - 1) { return this.count; }
                 return this.$data.index || 0;
             }
-            public load(parameters: IParameters): void {
-                this.$database.$execute("apiPlaylist", {
+            public load(parameters: IParameters): angular.IPromise<IParameters> {
+                return this.$database.$execute("apiPlaylist", {
                     period: { value: parameters.period || null },
                     genreUri: { value: parameters.genreUri || null },
                     styleUri: { value: parameters.styleUri || null },
@@ -159,6 +164,7 @@ module GoodMusic {
                             videos: response.data.videos
                         };
                     } else { this.$data = {}; }
+                    return this.parameters;
                 }, angular.noop);
             }
         }
@@ -181,7 +187,7 @@ module GoodMusic {
                 let defaultTitle: string = "Good Music";
                 if (!this.$route.current) { return defaultTitle; }
                 switch (this.$route.current.name) {
-                    case "videos": return this.$playlist.title;
+                    case "load": case "list": return this.$playlist.title;
                     default: return defaultTitle;
                 }
             }
@@ -205,15 +211,9 @@ module GoodMusic {
             constructor(private $database: Database.Service) {
                 this.fetchGenres().then((genres: IGenre[]) => { this.expand(genres[0]); });
             }
-            public periods: IPopularity[] = [
-                { id: "weekly", description: "Week" },
-                { id: "monthly", description: "Month" },
-                { id: "yearly", description: "Year" },
-                { id: "all", description: "Ever" }
-            ];
-            public period: string = this.periods[0].id;
             public genres: IGenre[];
-            public expand(genre: IGenre) {
+            public expand(genre: IGenre, $event?: angular.IAngularEvent) {
+                if ($event) { $event.preventDefault(); $event.stopPropagation(); }
                 this.genres.forEach(function (item: IGenre) { item.expanded = false; });
                 genre.expanded = true;
             }
@@ -229,17 +229,49 @@ module GoodMusic {
     export module Videos {
         interface IRouteParams extends angular.route.IRouteParamsService, Playlist.IParameters { }
         export class Controller {
-            static $inject: string[] = ["$routeParams", "$playlist", "$anchorScroll"];
+            static $inject: string[] = ["$location", "$route", "$routeParams", "$playlist", "$anchorScroll", "$log"];
             constructor(
+                private $location: angular.ILocationService,
+                private $route: angular.route.IRouteService,
                 private $routeParams: IRouteParams,
                 private $playlist: Playlist.Service,
-                public $anchorScroll: angular.IAnchorScrollService) {
-                $playlist.load(this.$routeParams);
+                private $anchorScroll: angular.IAnchorScrollService,
+                private $log: angular.ILogService) {
+                switch (this.action) {
+                    case "load":
+                        this.load(this.$routeParams);
+                        break;
+                    case "list":
+                        if (!$playlist.loaded) {
+                            $log.warn("gm:playlist:nolist");
+                            $location.path("/search");
+                        }
+                        break;
+                }
+                //this.page = Math.floor($playlist.index / this.pageSize);
+            }
+            private load(parameters: Playlist.IParameters): void {
+                this.$playlist.load(parameters)
+                    .then((newParams: Playlist.IParameters) => {
+                        if (!angular.equals(parameters, newParams)) {
+                            this.$route.updateParams(newParams);
+                        }
+                    }, angular.noop);
             }
             public page: number = 1;
             public pageSize: number = 12;
+            public get action(): string { return this.$route.current.name; }
+            public get title(): string { return this.$playlist.title; }
             public get videos(): Playlist.IVideo[] { return this.$playlist.videos; }
             public get count(): number { return this.$playlist.count; }
+            public get period(): Playlist.Period { return this.$playlist.parameters.period || "all"; }
+            public periods: string[] = ["all", "weekly", "monthly", "yearly"];
+            public setPeriod(period: Playlist.Period): void {
+                let parameters: Playlist.IParameters = this.$playlist.parameters;
+                parameters.period = period;
+                this.$route.updateParams(parameters);
+            }
+            public top(): void { this.$anchorScroll(); }
         }
     }
 }
@@ -264,7 +296,13 @@ gm.config(["$logProvider", "$routeProvider", function (
             controllerAs: "$ctrl"
         })
         .when("/videos/:period/:genreUri/:styleUri?", {
-            name: "videos",
+            name: "load",
+            templateUrl: "Views/videos.html",
+            controller: GoodMusic.Videos.Controller,
+            controllerAs: "$ctrl"
+        })
+        .when("/videos", {
+            name: "list",
             templateUrl: "Views/videos.html",
             controller: GoodMusic.Videos.Controller,
             controllerAs: "$ctrl"

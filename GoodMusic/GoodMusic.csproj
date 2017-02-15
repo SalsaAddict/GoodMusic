@@ -72,6 +72,10 @@
     <Reference Include="System.Xml.Linq" />
   </ItemGroup>
   <ItemGroup>
+    <Content Include="Content\bootstrap.cerulean.css" />
+    <Content Include="Content\bootstrap.cerulean.min.css" />
+    <Content Include="Content\bootstrap.readable.css" />
+    <Content Include="Content\bootstrap.readable.min.css" />
     <Content Include="Content\bootstrap.simplex.css" />
     <Content Include="Content\bootstrap.simplex.min.css" />
     <Content Include="Content\font-awesome.css" />

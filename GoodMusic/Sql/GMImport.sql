@@ -799,6 +799,34 @@ DECLARE @import XML = N'
 EXEC [apiImport] @import, 1
 GO
 
--- Randomize review dates
-UPDATE [review] SET [dateReviewed] = DATEADD(minute, CHECKSUM(NEWID()) % 1000000, GETUTCDATE())
-GO
+-- Test Data
+BEGIN TRANSACTION
+
+DECLARE @users INT = 100
+
+UPDATE [review] SET [dateReviewed] = DATEADD(minute, ABS(CHECKSUM(NEWID()) % 1000000), GETUTCDATE())
+
+INSERT INTO [favourite] ([userId], [genreId], [videoId])
+SELECT TOP 10 [userId], [genreId], [videoId] FROM [review] GROUP BY [userId], [genreId], [videoId] ORDER BY NEWID()
+
+INSERT INTO [user] ([id], [forename], [surname], [ping])
+SELECT
+	[id] = N'TEST' + RIGHT(REPLICATE(0, 10) + CONVERT(NVARCHAR(10), [number]), 10),
+	[forename] = N'Test User',
+	[surname] = CONVERT(NVARCHAR(10), [number]),
+	[ping] = DATEADD(minute, CHECKSUM(NEWID()) % 1000000, GETUTCDATE())
+FROM [master]..[spt_values]
+WHERE [type] = N'P'
+	AND [number] BETWEEN 1 AND @users
+
+INSERT INTO [review] ([videoId], [genreId], [styleId], [userId], [like], [dateReviewed])
+SELECT v.[videoId], v.[genreId], v.[styleId], u.[id], rnd.[like], DATEADD(minute, CHECKSUM(NEWID()) % 1000000, GETUTCDATE())
+FROM (SELECT DISTINCT [videoId], [genreId], [styleId] FROM [review]) v
+	CROSS APPLY (VALUES (ABS(CHECKSUM(NEWID())) % @users, ABS(CHECKSUM(NEWID()) % 2))) rnd ([surname], [like])
+	CROSS APPLY (SELECT [id] FROM [user] WHERE [forename] = N'Test User' AND CONVERT(INT, [surname]) < rnd.[surname]) u
+
+SELECT [videoId], [genreId], [styleId], COUNT(NULLIF([like], 0)), COUNT(NULLIF([dislike], 0))
+FROM [review]
+GROUP BY [videoId], [genreId], [styleId]
+
+COMMIT TRANSACTION

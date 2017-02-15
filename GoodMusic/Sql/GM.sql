@@ -314,7 +314,8 @@ VALUES
 	(1, N'salsa', N'Salsa'),
 	(2, N'bachata', N'Bachata'),
 	(3, N'kizomba', N'Kizomba'),
-	(4, N'chachacha', N'Cha Cha Chá')
+	(4, N'chachacha', N'Cha Cha Chá'),
+	(5, N'brazouk', N'Brazilian Zouk')
 SET IDENTITY_INSERT [genre] OFF
 GO
 
@@ -349,7 +350,10 @@ VALUES
 	(3, 11, N'kizomba', N'Kizomba', 1),
 	(3, 12, N'urbankiz', N'Urban Kiz', 2),
 	(3, 13, N'semba', N'Semba', 3),
-	(4, 14, N'chachacha', N'Cha Cha Chá', 1)
+	(4, 14, N'chachacha', N'Cha Cha Chá', 1),
+	(5, 15, N'riozouk', N'Rio Zouk', 1),
+	(5, 16, N'lambazouk', N'Lambazouk', 2),
+	(5, 17, N'mzouk', N'Modern Zouk', 3)
 SET IDENTITY_INSERT [style] ON
 GO
 
@@ -662,7 +666,8 @@ GO
 CREATE PROCEDURE [apiPlaylistParameters](
 	@period NVARCHAR(10) = NULL OUTPUT,
 	@genreUri NVARCHAR(10) = NULL OUTPUT,
-	@styleUri NVARCHAR(10) = NULL OUTPUT
+	@styleUri NVARCHAR(10) = NULL OUTPUT,
+	@title NVARCHAR(255) = NULL OUTPUT
 )
 AS
 BEGIN
@@ -676,7 +681,10 @@ BEGIN
 				) p ([period])
 			WHERE [period] = @period),
 		N'all')
-	SELECT @genreUri = g.[uri], @styleUri = s.[uri]
+	SELECT
+		@genreUri = g.[uri],
+		@styleUri = s.[uri],
+		@title = ISNULL(s.[name], g.[name])
 	FROM [genre] g
 		LEFT JOIN [style] s ON g.[id] = s.[genreId] AND s.[uri] = @styleUri
 	WHERE g.[uri] = @genreUri
@@ -685,40 +693,46 @@ END
 GO
 
 CREATE PROCEDURE [apiPlaylist](
-	@period NVARCHAR(10) = NULL,
-	@genreUri NVARCHAR(10) = NULL,
+	@period NVARCHAR(10),
+	@genreUri NVARCHAR(10),
 	@styleUri NVARCHAR(10) = NULL,
-	@favourites BIT = 0,
 	@userId NVARCHAR(25) = NULL
 )
 AS
 BEGIN
 	SET NOCOUNT ON
-	EXEC [apiPlaylistParameters] @period OUT, @genreUri OUT, @styleUri OUT
-	DECLARE @oldest DATETIMEOFFSET = CASE @period
-			WHEN N'weekly' THEN DATEADD(day, -7, GETUTCDATE())
-			WHEN N'monthly' THEN DATEADD(month, -1, GETUTCDATE())
-			WHEN N'yearly' THEN DATEADD(year, -1, GETUTCDATE())
-		END
-	;WITH XMLNAMESPACES (N'http://james.newtonking.com/projects/json' AS [json]),
-	[reviews] AS (
+	DECLARE @title NVARCHAR(255)
+	EXEC [apiPlaylistParameters] @period OUT, @genreUri OUT, @styleUri OUT, @title OUT
+	DECLARE @since DATETIMEOFFSET = CASE @period
+		WHEN N'weekly' THEN DATEADD(week, -1, GETUTCDATE())
+		WHEN N'monthly' THEN DATEADD(month, -1, GETUTCDATE())
+		WHEN N'yearly' THEN DATEADD(year, -1, GETUTCDATE())
+	END
+	;WITH [reviews] AS (
 			SELECT
-				[videoId] = rvw.[videoId],
-				[genreId] = rvw.[genreId],
-				[like] = CONVERT(BIT, MAX(CASE WHEN rvw.[userId] = @userId THEN rvw.[like] ELSE 0 END)),
-				[likes] = COUNT(NULLIF(rvw.[like], 0)),
-				[dislike] = CONVERT(BIT, MAX(CASE WHEN rvw.[userId] = @userId THEN rvw.[dislike] ELSE 0 END)),
-				[dislikes] = COUNT(NULLIF(rvw.[dislike], 0)),
-				[rank] = ROW_NUMBER() OVER (ORDER BY CONVERT(FLOAT, COUNT(NULLIF(rvw.[like], 0))) / CONVERT(FLOAT, COUNT(*)) DESC, COUNT(*) DESC, MAX(rvw.[dateReviewed]) DESC)
-			FROM [review] rvw
-				JOIN [genre] g ON rvw.[genreId] = g.[id]
-				JOIN [style] s ON rvw.[genreId] = s.[genreId] AND rvw.[styleId] = s.[id]
-			WHERE (g.[uri] = @genreUri OR @genreUri IS NULL)
+				[videoId] = r.[videoId],
+				[genreId] = r.[genreId],
+				[dateLikes] = ISNULL(COUNT(NULLIF(a.[dateMatch] & r.[like], 0)), 0),
+				[dateTotal] = NULLIF(COUNT(NULLIF(a.[dateMatch], 0)), 0),
+				[like] = CONVERT(BIT, MAX(CONVERT(INT, a.[userMatch] & r.[like]))),
+				[likes] = ISNULL(COUNT(NULLIF(r.[like], 0)), 0),
+				[dislike] = CONVERT(BIT, MAX(CONVERT(INT, a.[userMatch] & r.[dislike]))),
+				[dislikes] = ISNULL(COUNT(NULLIF(r.[dislike], 0)), 0),
+				[total] = COUNT(*),
+				[latest] = MAX(r.[dateReviewed])
+			FROM [review] r
+				JOIN [genre] g ON r.[genreId] = g.[id]
+				JOIN [style] s ON r.[genreId] = s.[genreId] AND r.[styleId] = s.[id]
+				CROSS APPLY (VALUES (
+						CONVERT(BIT, CASE WHEN r.[dateReviewed] >= @since OR @since IS NULL THEN 1 ELSE 0 END),
+						CONVERT(BIT, CASE WHEN r.[userId] = @userId THEN 1 ELSE 0 END)
+					)) a ([dateMatch], [userMatch])
+			WHERE g.[uri] = @genreUri
 				AND (s.[uri] = @styleUri OR @styleUri IS NULL)
-				AND (rvw.[dateReviewed] >= @oldest OR @oldest IS NULL)
-			GROUP BY rvw.[videoId], rvw.[genreId]
+			GROUP BY r.[videoId], r.[genreId]
 		)
 	SELECT
+		[title] = @title,
 		( -- parameters
 				SELECT
 					[period] = @period,
@@ -726,63 +740,30 @@ BEGIN
 					[styleUri] = @styleUri
 				FOR XML PATH (N'parameters'), TYPE
 			),
-		[title] = (
-				SELECT ISNULL((
-							SELECT ISNULL(s.[name], g.[name])
-							FROM [genre] g
-								LEFT JOIN [style] s ON g.[id] = s.[genreId] AND s.[uri] = @styleUri
-							WHERE g.[uri] = @genreUri
-						), N'All Genres')
-				FOR XML PATH (N'')
-			),
 		( -- videos
 				SELECT
-					[@json:Array] = N'true',
-					[rank] = r.[rank],
-					[videoId] = r.[videoId],
+					[rank] = ROW_NUMBER() OVER (ORDER BY
+							ISNULL(CONVERT(FLOAT, rvw.[dateLikes]) / CONVERT(FLOAT, rvw.[dateTotal]), CONVERT(FLOAT, 0)) DESC,
+							ISNULL(CONVERT(FLOAT, rvw.[likes]) / CONVERT(FLOAT, rvw.[total]), CONVERT(FLOAT, 0)) DESC,
+							rvw.[latest] DESC,
+							v.[dateRecommended] DESC
+						),
+					[videoId] = rvw.[videoId],
 					[title] = v.[title],
-					[genre] = g.[name],
-					[thumbnail] = v.[thumbnail],
-					[like] = r.[like],
-					[likes] = r.[likes],
-					[dislike] = r.[dislike],
-					[dislikes] = r.[dislikes],
-					[favourite] = CONVERT(BIT, CASE WHEN fav.[videoId] IS NULL THEN 0 ELSE 1 END)
-				FROM [reviews] r
-					JOIN [video] v ON r.[videoId] = v.[id]
-					JOIN [genre] g ON r.[genreId] = g.[id]
+					[like] = rvw.[like],
+					[likes] = rvw.[likes],
+					[dislike] = rvw.[dislike],
+					[dislikes] = rvw.[dislikes],
+					[favourite] = CONVERT(BIT, CASE WHEN fav.[videoId] IS NOT NULL THEN 1 ELSE 0 END)
+				FROM [reviews] rvw
+					JOIN [video] v ON rvw.[videoId] = v.[id]
 					LEFT JOIN [favourite] fav ON fav.[userId] = @userId
-						AND r.[genreId] = fav.[genreId]
-						AND r.[videoId] = fav.[videoId]
-				WHERE (fav.[videoId] IS NOT NULL OR ISNULL(@favourites, 0) = 0)
-				ORDER BY r.[rank]
+						AND rvw.[genreId] = fav.[genreId]
+						AND rvw.[videoId] = fav.[videoId]
+				ORDER BY 1
 				FOR XML PATH (N'videos'), TYPE
 			)
 	FOR XML PATH (N'data')
 	RETURN
 END
 GO
-/*
-EXEC [apiVideos] N'bachata', N'moderna'
-
-DECLARE @genreUri NVARCHAR(10), @styleUri NVARCHAR(10), @popularity NCHAR(1)= N'W'
-
-SELECT
-	[videoId] = rvw.[videoId],
-	[genreId] = rvw.[genreId],
-
-FROM [review] rvw
-	JOIN [genre] g ON rvw.[genreId] = g.[id]
-	JOIN [style] s ON rvw.[genreId] = s.[genreId] AND rvw.[styleId] = s.[id]
-	CROSS JOIN (VALUES (CASE @popularity
-			WHEN N'W' THEN DATEADD(week, -1, GETUTCDATE())
-			WHEN N'M' THEN DATEADD(month, -1, GETUTCDATE())
-			WHEN N'Y' THEN DATEADD(year, -1, GETUTCDATE())
-		END)) p ([since])
-	CROSS APPLY (VALUES (CONVERT(BIT, CASE
-			WHEN (rvw.[dateReviewed] >= p.[since] OR p.[since] IS NULL)
-				AND (g.[uri] = @genreUri OR @genreUri IS NULL)
-				AND (s.[uri] = @styleUri OR @styleUri IS NULL)
-			THEN 1 ELSE 0 END))) a ([applicable])
-WHERE g.[uri] = @genreUri OR @genreUri IS NULL
-*/
