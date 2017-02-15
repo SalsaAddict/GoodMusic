@@ -9,7 +9,7 @@
     </div>
     <br />
     <div class="row">
-        <div ng-repeat="video in $ctrl.videos | limitTo: $ctrl.pageSize : ($ctrl.page - 1) * $ctrl.pageSize" class="col-xs-12 col-sm-6 col-md-4 col-lg-3">
+        <div ng-repeat="video in $ctrl.videos | limitTo: $ctrl.pageSize : ($ctrl.page - 1) * $ctrl.pageSize" class="col-xs-12 col-sm-6 col-md-4 col-lg-3" ng-click="$ctrl.open(video, $event)">
             <div class="thumbnail">
                 <div class="embed-responsive embed-responsive-16by9">
                     <img class="embed-responsive-item" ng-src="https://i.ytimg.com/vi/{{video.videoId}}/mqdefault.jpg" alt="{{video.title}}" />

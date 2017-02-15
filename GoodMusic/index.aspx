@@ -76,6 +76,7 @@
     <script type="text/javascript" src="Scripts/angular-route.min.js?v=<%= RandomGuid %>"></script>
     <script type="text/javascript" src="Scripts/angular-ui/ui-bootstrap-tpls.min.js?v=<%= RandomGuid %>"></script>
     <script type="text/javascript" src="Scripts/goodmusic/goodmusic.min.js?v=<%= RandomGuid %>"></script>
-    <script type="text/javascript" src="//connect.facebook.net/en_US/sdk.js"></script>
+    <script type="text/javascript" src="https://connect.facebook.net/en_US/sdk.js"></script>
+    <script type="text/javascript" src="https://www.youtube.com/iframe_api"></script>
 </body>
 </html>

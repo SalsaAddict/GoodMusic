@@ -119,18 +119,18 @@ module GoodMusic {
     export module Playlist {
         export type Period = "all" | "weekly" | "monthly" | "yearly";
         export interface IParameters extends angular.route.IRouteParamsService { period?: Period; genreUri?: string; styleUri?: string; }
-        export interface IVideo { videoId: string; title: string; genre: string; }
         interface IData {
             parameters?: IParameters;
             title?: string;
-            videos?: IVideo[];
+            videos?: Video.IVideo[];
             index?: number;
         }
         export class Service {
-            static $inject: string[] = ["$authentication", "$database"];
+            static $inject: string[] = ["$authentication", "$database", "$filter"];
             constructor(
                 private $authentication: Authentication.Service,
-                private $database: Database.Service) { }
+                private $database: Database.Service,
+                private $filter: angular.IFilterService) { }
             private $data: IData = {};
             public get loaded(): boolean { return angular.isDefined(this.$data.videos); }
             public get title(): string { return this.$data.title || "Good Music"; }
@@ -138,17 +138,24 @@ module GoodMusic {
                 if (!this.$data) { return {}; }
                 return this.$data.parameters || {};
             }
-            public get videos(): IVideo[] {
+            public get videos(): Video.IVideo[] {
                 if (!this.$data) { return []; }
                 if (!angular.isArray(this.$data.videos)) { return []; }
-                return this.$data.videos;
+                return this.$filter("orderBy")(this.$data.videos,
+                    function (item: Video.IVideo) {
+                        return parseInt(item.rank, 10);
+                    });
             }
             public get count(): number { return this.videos.length; }
             public set index(value: number) { this.$data.index = value; }
             public get index(): number {
                 if (this.count === 0) { return -1; }
-                if (this.$data.index >= this.count - 1) { return this.count; }
+                if (this.$data.index >= this.count) { return this.count - 1; }
                 return this.$data.index || 0;
+            }
+            public get video(): Video.IVideo {
+                if (this.index < 0) { return; }
+                return this.videos[this.index];
             }
             public load(parameters: IParameters): angular.IPromise<IParameters> {
                 return this.$database.$execute("apiPlaylist", {
@@ -262,7 +269,7 @@ module GoodMusic {
             public pageSize: number = 12;
             public get action(): string { return this.$route.current.name; }
             public get title(): string { return this.$playlist.title; }
-            public get videos(): Playlist.IVideo[] { return this.$playlist.videos; }
+            public get videos(): Video.IVideo[] { return this.$playlist.videos; }
             public get count(): number { return this.$playlist.count; }
             public get period(): Playlist.Period { return this.$playlist.parameters.period || "all"; }
             public periods: string[] = ["all", "weekly", "monthly", "yearly"];
@@ -272,6 +279,44 @@ module GoodMusic {
                 this.$route.updateParams(parameters);
             }
             public top(): void { this.$anchorScroll(); }
+            public open(video: Video.IVideo, $event: angular.IAngularEvent): void {
+                if ($event) { $event.preventDefault(); $event.stopPropagation(); }
+                let rank: number = parseInt(video.rank);
+                this.$location.path("/video/" + rank);
+            }
+        }
+    }
+    export module Video {
+        interface IRouteParams extends angular.route.IRouteParamsService { rank: string; }
+        export interface IVideo {
+            rank: string; videoId: string; title: string;
+            like: string; likes: string;
+            dislike: string; dislikes: string;
+            favourite: string;
+        }
+        export class Controller {
+            static $inject: string[] = ["$playlist", "$routeParams", "$location", "$log"];
+            constructor(
+                private $playlist: Playlist.Service,
+                private $routeParams: IRouteParams,
+                private $location: angular.ILocationService,
+                private $log: angular.ILogService) {
+                this.$playlist.index = parseInt($routeParams.rank) - 1;
+                if (!$playlist.video) {
+                    $log.warn("gm:video:novideo", parseInt($routeParams.rank));
+                    $location.path("/search");
+                    return;
+                }
+                let player = new YT.Player("player", {
+                    videoId: $playlist.video.videoId,
+                    width: "100%",
+                    height: "100%",
+                    events: { onReady: function (event: any) { event.target.playVideo(); } }
+                });
+                $log.debug("refresh", player);
+            }
+            public get video(): IVideo { return this.$playlist.video; }
+            public get rank(): number { return parseInt(this.video.rank, 10); }
         }
     }
 }
@@ -305,6 +350,12 @@ gm.config(["$logProvider", "$routeProvider", function (
             name: "list",
             templateUrl: "Views/videos.html",
             controller: GoodMusic.Videos.Controller,
+            controllerAs: "$ctrl"
+        })
+        .when("/video/:rank", {
+            name: "video",
+            templateUrl: "Views/video.html",
+            controller: GoodMusic.Video.Controller,
             controllerAs: "$ctrl"
         })
         .otherwise({ redirectTo: "/home" })

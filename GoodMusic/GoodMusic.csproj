@@ -889,6 +889,7 @@
     <Content Include="Sql\GMImport.sql" />
     <Content Include="Views\home.html" />
     <Content Include="Views\search.html" />
+    <Content Include="Views\video.html" />
     <Content Include="Views\videos.html" />
     <Content Include="Web.config" />
   </ItemGroup>

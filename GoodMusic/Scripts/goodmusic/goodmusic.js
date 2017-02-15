@@ -135,9 +135,10 @@ var GoodMusic;
     var Playlist;
     (function (Playlist) {
         var Service = (function () {
-            function Service($authentication, $database) {
+            function Service($authentication, $database, $filter) {
                 this.$authentication = $authentication;
                 this.$database = $database;
+                this.$filter = $filter;
                 this.$data = {};
             }
             Object.defineProperty(Service.prototype, "loaded", {
@@ -168,7 +169,9 @@ var GoodMusic;
                     if (!angular.isArray(this.$data.videos)) {
                         return [];
                     }
-                    return this.$data.videos;
+                    return this.$filter("orderBy")(this.$data.videos, function (item) {
+                        return parseInt(item.rank, 10);
+                    });
                 },
                 enumerable: true,
                 configurable: true
@@ -183,12 +186,22 @@ var GoodMusic;
                     if (this.count === 0) {
                         return -1;
                     }
-                    if (this.$data.index >= this.count - 1) {
-                        return this.count;
+                    if (this.$data.index >= this.count) {
+                        return this.count - 1;
                     }
                     return this.$data.index || 0;
                 },
                 set: function (value) { this.$data.index = value; },
+                enumerable: true,
+                configurable: true
+            });
+            Object.defineProperty(Service.prototype, "video", {
+                get: function () {
+                    if (this.index < 0) {
+                        return;
+                    }
+                    return this.videos[this.index];
+                },
                 enumerable: true,
                 configurable: true
             });
@@ -213,7 +226,7 @@ var GoodMusic;
                     return _this.parameters;
                 }, angular.noop);
             };
-            Service.$inject = ["$authentication", "$database"];
+            Service.$inject = ["$authentication", "$database", "$filter"];
             return Service;
         }());
         Playlist.Service = Service;
@@ -367,11 +380,56 @@ var GoodMusic;
                 this.$route.updateParams(parameters);
             };
             Controller.prototype.top = function () { this.$anchorScroll(); };
+            Controller.prototype.open = function (video, $event) {
+                if ($event) {
+                    $event.preventDefault();
+                    $event.stopPropagation();
+                }
+                var rank = parseInt(video.rank);
+                this.$location.path("/video/" + rank);
+            };
             Controller.$inject = ["$location", "$route", "$routeParams", "$playlist", "$anchorScroll", "$log"];
             return Controller;
         }());
         Videos.Controller = Controller;
     })(Videos = GoodMusic.Videos || (GoodMusic.Videos = {}));
+    var Video;
+    (function (Video) {
+        var Controller = (function () {
+            function Controller($playlist, $routeParams, $location, $log) {
+                this.$playlist = $playlist;
+                this.$routeParams = $routeParams;
+                this.$location = $location;
+                this.$log = $log;
+                this.$playlist.index = parseInt($routeParams.rank) - 1;
+                if (!$playlist.video) {
+                    $log.warn("gm:video:novideo", parseInt($routeParams.rank));
+                    $location.path("/search");
+                    return;
+                }
+                var player = new YT.Player("player", {
+                    videoId: $playlist.video.videoId,
+                    width: "100%",
+                    height: "100%",
+                    events: { onReady: function (event) { event.target.playVideo(); } }
+                });
+                $log.debug("refresh", player);
+            }
+            Object.defineProperty(Controller.prototype, "video", {
+                get: function () { return this.$playlist.video; },
+                enumerable: true,
+                configurable: true
+            });
+            Object.defineProperty(Controller.prototype, "rank", {
+                get: function () { return parseInt(this.video.rank, 10); },
+                enumerable: true,
+                configurable: true
+            });
+            Controller.$inject = ["$playlist", "$routeParams", "$location", "$log"];
+            return Controller;
+        }());
+        Video.Controller = Controller;
+    })(Video = GoodMusic.Video || (GoodMusic.Video = {}));
 })(GoodMusic || (GoodMusic = {}));
 var gm = angular.module("gm", ["ngRoute", "ngAria", "ngAnimate", "ui.bootstrap"]);
 gm.service("$database", GoodMusic.Database.Service);
@@ -398,6 +456,12 @@ gm.config(["$logProvider", "$routeProvider", function ($logProvider, $routeProvi
             name: "list",
             templateUrl: "Views/videos.html",
             controller: GoodMusic.Videos.Controller,
+            controllerAs: "$ctrl"
+        })
+            .when("/video/:rank", {
+            name: "video",
+            templateUrl: "Views/video.html",
+            controller: GoodMusic.Video.Controller,
             controllerAs: "$ctrl"
         })
             .otherwise({ redirectTo: "/home" })
