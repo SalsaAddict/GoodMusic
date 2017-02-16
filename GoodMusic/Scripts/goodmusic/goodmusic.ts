@@ -1,17 +1,13 @@
 ﻿/// <reference path="../typings/angularjs/angular.d.ts" />
 /// <reference path="../typings/angularjs/angular-route.d.ts" />
-
-declare let FB: any, YT: any;
+/// <reference path="../typings/facebook-js-sdk/facebook-js-sdk.d.ts" />
+/// <reference path="../typings/youtube/youtube.d.ts" />
 
 module GoodMusic {
     "option strict";
     export const debugEnabled: boolean = true;
     export const fbAppId: string = "1574477942882037";
     export const googleApiKey: string = "AIzaSyCtuJp3jsaJp3X6U8ZS_X5H8omiAw5QaHg";
-}
-
-module GoodMusic {
-    "option strict";
     export module Database {
         interface IHttpSuccess { data: IResponse }
         interface IHttpError { status: number; statusText: string; }
@@ -53,15 +49,6 @@ module GoodMusic {
     }
     export module Authentication {
         interface IWindowService extends angular.IWindowService { fbAsyncInit: Function; }
-        interface IFacebookAuthResponse {
-            status: "connected" | "not_authorized" | "unknown";
-            authResponse: {
-                accessToken: string;
-                expiresIn: string;
-                signedRequest: string;
-                userID: string;
-            }
-        }
         interface IFacebookUser { id: string; first_name: string; last_name: string; gender: "male" | "female"; }
         export interface IUser { id: string; name?: string; }
         export class Service {
@@ -73,7 +60,7 @@ module GoodMusic {
                 private $log: angular.ILogService) {
                 $window.fbAsyncInit = (): void => {
                     FB.init({ appId: GoodMusic.fbAppId, cookie: true, status: true, version: "v2.8" });
-                    FB.Event.subscribe('auth.authResponseChange', (authResponse: IFacebookAuthResponse): void => {
+                    FB.Event.subscribe('auth.authResponseChange', (authResponse: fb.AuthResponse): void => {
                         this.$log.debug("gm:fb:authResponse", authResponse);
                         try {
                             if (authResponse.status === "connected") {
@@ -176,10 +163,6 @@ module GoodMusic {
             }
         }
     }
-}
-
-module GoodMusic {
-    "option strict";
     export module Menu {
         export class Controller {
             static $inject: string[] = ["$scope", "$route", "$authentication", "$playlist"];
@@ -326,6 +309,7 @@ let gm: angular.IModule = angular.module("gm", ["ngRoute", "ngAria", "ngAnimate"
 gm.service("$database", GoodMusic.Database.Service);
 gm.service("$authentication", GoodMusic.Authentication.Service);
 gm.service("$playlist", GoodMusic.Playlist.Service);
+
 gm.controller("menuController", GoodMusic.Menu.Controller);
 
 gm.config(["$logProvider", "$routeProvider", function (

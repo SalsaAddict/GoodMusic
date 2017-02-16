@@ -1,15 +1,13 @@
 /// <reference path="../typings/angularjs/angular.d.ts" />
 /// <reference path="../typings/angularjs/angular-route.d.ts" />
+/// <reference path="../typings/facebook-js-sdk/facebook-js-sdk.d.ts" />
+/// <reference path="../typings/youtube/youtube.d.ts" />
 var GoodMusic;
 (function (GoodMusic) {
     "option strict";
     GoodMusic.debugEnabled = true;
     GoodMusic.fbAppId = "1574477942882037";
     GoodMusic.googleApiKey = "AIzaSyCtuJp3jsaJp3X6U8ZS_X5H8omiAw5QaHg";
-})(GoodMusic || (GoodMusic = {}));
-var GoodMusic;
-(function (GoodMusic) {
-    "option strict";
     var Database;
     (function (Database) {
         var Service = (function () {
@@ -231,10 +229,6 @@ var GoodMusic;
         }());
         Playlist.Service = Service;
     })(Playlist = GoodMusic.Playlist || (GoodMusic.Playlist = {}));
-})(GoodMusic || (GoodMusic = {}));
-var GoodMusic;
-(function (GoodMusic) {
-    "option strict";
     var Menu;
     (function (Menu) {
         var Controller = (function () {
