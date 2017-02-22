@@ -379,8 +379,8 @@ var GoodMusic;
                     $event.preventDefault();
                     $event.stopPropagation();
                 }
-                var rank = parseInt(video.rank);
-                this.$location.path("/video/" + rank);
+                this.$playlist.index = parseInt(video.rank) - 1;
+                this.$location.path("/video");
             };
             Controller.$inject = ["$location", "$route", "$routeParams", "$playlist", "$anchorScroll", "$log"];
             return Controller;
@@ -390,36 +390,64 @@ var GoodMusic;
     var Video;
     (function (Video) {
         var Controller = (function () {
-            function Controller($playlist, $routeParams, $location, $log) {
+            function Controller($playlist, $location, $log) {
+                var _this = this;
                 this.$playlist = $playlist;
-                this.$routeParams = $routeParams;
                 this.$location = $location;
                 this.$log = $log;
-                this.$playlist.index = parseInt($routeParams.rank) - 1;
                 if (!$playlist.video) {
-                    $log.warn("gm:video:novideo", parseInt($routeParams.rank));
+                    $log.warn("gm:video:novideo");
                     $location.path("/search");
                     return;
                 }
-                var player = new YT.Player("player", {
-                    videoId: $playlist.video.videoId,
+                this.player = new YT.Player("player", {
                     width: "100%",
                     height: "100%",
-                    events: { onReady: function (event) { event.target.playVideo(); } }
+                    events: {
+                        onReady: function (event) {
+                            _this.play();
+                        }
+                    }
                 });
-                $log.debug("refresh", player);
             }
             Object.defineProperty(Controller.prototype, "video", {
                 get: function () { return this.$playlist.video; },
                 enumerable: true,
                 configurable: true
             });
-            Object.defineProperty(Controller.prototype, "rank", {
-                get: function () { return parseInt(this.video.rank, 10); },
+            Object.defineProperty(Controller.prototype, "$first", {
+                get: function () { return (this.$playlist.index === 0); },
                 enumerable: true,
                 configurable: true
             });
-            Controller.$inject = ["$playlist", "$routeParams", "$location", "$log"];
+            Object.defineProperty(Controller.prototype, "$last", {
+                get: function () { return (this.$playlist.index === this.$playlist.count - 1); },
+                enumerable: true,
+                configurable: true
+            });
+            Controller.prototype.play = function () {
+                if (this.player.getPlayerState() === YT.PlayerState.PLAYING) {
+                    this.player.stopVideo();
+                }
+                this.player.loadVideoById(this.video.videoId);
+            };
+            Controller.prototype.previous = function ($event) {
+                if ($event) {
+                    $event.preventDefault();
+                    $event.stopPropagation();
+                }
+                this.$playlist.index--;
+                this.play();
+            };
+            Controller.prototype.next = function ($event) {
+                if ($event) {
+                    $event.preventDefault();
+                    $event.stopPropagation();
+                }
+                this.$playlist.index++;
+                this.play();
+            };
+            Controller.$inject = ["$playlist", "$location", "$log"];
             return Controller;
         }());
         Video.Controller = Controller;
@@ -452,7 +480,7 @@ gm.config(["$logProvider", "$routeProvider", function ($logProvider, $routeProvi
             controller: GoodMusic.Videos.Controller,
             controllerAs: "$ctrl"
         })
-            .when("/video/:rank", {
+            .when("/video", {
             name: "video",
             templateUrl: "Views/video.html",
             controller: GoodMusic.Video.Controller,

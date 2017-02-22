@@ -264,13 +264,12 @@ module GoodMusic {
             public top(): void { this.$anchorScroll(); }
             public open(video: Video.IVideo, $event: angular.IAngularEvent): void {
                 if ($event) { $event.preventDefault(); $event.stopPropagation(); }
-                let rank: number = parseInt(video.rank);
-                this.$location.path("/video/" + rank);
+                this.$playlist.index = parseInt(video.rank) - 1;
+                this.$location.path("/video");
             }
         }
     }
     export module Video {
-        interface IRouteParams extends angular.route.IRouteParamsService { rank: string; }
         export interface IVideo {
             rank: string; videoId: string; title: string;
             like: string; likes: string;
@@ -278,28 +277,46 @@ module GoodMusic {
             favourite: string;
         }
         export class Controller {
-            static $inject: string[] = ["$playlist", "$routeParams", "$location", "$log"];
+            static $inject: string[] = ["$playlist", "$location", "$log"];
             constructor(
                 private $playlist: Playlist.Service,
-                private $routeParams: IRouteParams,
                 private $location: angular.ILocationService,
                 private $log: angular.ILogService) {
-                this.$playlist.index = parseInt($routeParams.rank) - 1;
                 if (!$playlist.video) {
-                    $log.warn("gm:video:novideo", parseInt($routeParams.rank));
+                    $log.warn("gm:video:novideo");
                     $location.path("/search");
                     return;
                 }
-                let player = new YT.Player("player", {
-                    videoId: $playlist.video.videoId,
+                this.player = new YT.Player("player", {
                     width: "100%",
                     height: "100%",
-                    events: { onReady: function (event: any) { event.target.playVideo(); } }
+                    events: {
+                        onReady: (event: YT.Events) => {
+                            this.play();
+                        }
+                    }
                 });
-                $log.debug("refresh", player);
             }
+            public player: YT.Player;
             public get video(): IVideo { return this.$playlist.video; }
-            public get rank(): number { return parseInt(this.video.rank, 10); }
+            public get $first(): boolean { return (this.$playlist.index === 0); }
+            public get $last(): boolean { return (this.$playlist.index === this.$playlist.count - 1); }
+            public play(): void {
+                if (this.player.getPlayerState() === YT.PlayerState.PLAYING) {
+                    this.player.stopVideo();
+                }
+                this.player.loadVideoById(this.video.videoId);
+            }
+            public previous($event: angular.IAngularEvent): void {
+                if ($event) { $event.preventDefault(); $event.stopPropagation(); }
+                this.$playlist.index--;
+                this.play();
+            }
+            public next($event: angular.IAngularEvent): void {
+                if ($event) { $event.preventDefault(); $event.stopPropagation(); }
+                this.$playlist.index++;
+                this.play();
+            }
         }
     }
 }
@@ -336,7 +353,7 @@ gm.config(["$logProvider", "$routeProvider", function (
             controller: GoodMusic.Videos.Controller,
             controllerAs: "$ctrl"
         })
-        .when("/video/:rank", {
+        .when("/video", {
             name: "video",
             templateUrl: "Views/video.html",
             controller: GoodMusic.Video.Controller,

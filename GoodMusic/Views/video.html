@@ -1,19 +1,22 @@
 ﻿<div class="col-xs-12 col-sm-offset-2 col-sm-8 col-md-offset-3 col-md-6 col-lg-offset-4 col-lg-4">
     <div class="panel panel-default">
         <div class="panel-heading ellipsis">
-            <b><span>{{$ctrl.video.title}}</span></b>
+            <b><span>{{$ctrl.video.rank}}. {{$ctrl.video.title}}</span></b>
         </div>
         <div class="embed-responsive embed-responsive-16by9">
             <div class="embed-responsive-item" id="player"></div>
         </div>
         <div class="panel-footer">
             <div class="btn-group">
+                <button type="button" class="btn btn-default" ng-click="$ctrl.previous()" ng-disabled="$ctrl.$first">
+                    <i class="fa fa-fw fa-backward"></i>
+                </button>
                 <a href="#!/videos" class="btn btn-default">
                     <i class="fa fa-fw fa-list"></i>
                 </a>
-                <a ng-href="#!/video/{{$ctrl.rank + 1}}" class="btn btn-default">
+                <button type="button" class="btn btn-default" ng-click="$ctrl.next()" ng-disabled="$ctrl.$last">
                     <i class="fa fa-fw fa-forward"></i>
-                </a>
+                </button>
             </div>
         </div>
     </div>
