@@ -145,6 +145,7 @@ module GoodMusic {
                 return this.videos[this.index];
             }
             public load(parameters: IParameters): angular.IPromise<IParameters> {
+                this.$data = {};
                 return this.$database.$execute("apiPlaylist", {
                     period: { value: parameters.period || null },
                     genreUri: { value: parameters.genreUri || null },
@@ -177,7 +178,7 @@ module GoodMusic {
                 let defaultTitle: string = "Good Music";
                 if (!this.$route.current) { return defaultTitle; }
                 switch (this.$route.current.name) {
-                    case "load": case "list": return this.$playlist.title;
+                    case "load": case "list": case "view": return this.$playlist.title;
                     default: return defaultTitle;
                 }
             }
@@ -250,6 +251,7 @@ module GoodMusic {
             }
             public page: number = 1;
             public pageSize: number = 12;
+            public get loaded(): boolean { return this.$playlist.loaded; }
             public get action(): string { return this.$route.current.name; }
             public get title(): string { return this.$playlist.title; }
             public get videos(): Video.IVideo[] { return this.$playlist.videos; }

@@ -1,4 +1,8 @@
-﻿<div class="container-fluid">
+﻿<div class="text-center" ng-if="!$ctrl.loaded">
+    <i class="fa fa-lg fa-fw fa-spin fa-spinner"></i>
+    <span>Loading</span>
+</div>
+<div class="container-fluid" ng-if="$ctrl.loaded">
     <div class="text-center">
         <div class="btn-group btn-group-xs">
             <button type="button" ng-repeat="period in $ctrl.periods" ng-click="$ctrl.setPeriod(period)"

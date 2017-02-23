@@ -205,6 +205,7 @@ var GoodMusic;
             });
             Service.prototype.load = function (parameters) {
                 var _this = this;
+                this.$data = {};
                 return this.$database.$execute("apiPlaylist", {
                     period: { value: parameters.period || null },
                     genreUri: { value: parameters.genreUri || null },
@@ -251,7 +252,8 @@ var GoodMusic;
                     }
                     switch (this.$route.current.name) {
                         case "load":
-                        case "list": return this.$playlist.title;
+                        case "list":
+                        case "view": return this.$playlist.title;
                         default: return defaultTitle;
                     }
                 },
@@ -343,6 +345,11 @@ var GoodMusic;
                     }
                 }, angular.noop);
             };
+            Object.defineProperty(Controller.prototype, "loaded", {
+                get: function () { return this.$playlist.loaded; },
+                enumerable: true,
+                configurable: true
+            });
             Object.defineProperty(Controller.prototype, "action", {
                 get: function () { return this.$route.current.name; },
                 enumerable: true,
