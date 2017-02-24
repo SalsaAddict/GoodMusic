@@ -194,26 +194,38 @@ module GoodMusic {
         }
     }
     export module Search {
+        interface IRouteParams extends angular.route.IRouteParamsService { genreUri: string; }
         interface IPopularity { id: string; description: string; }
         interface IStyle { id: string; uri: string; name: string; count: string; }
-        interface IGenre { id: string; uri: string; name: string; count: string; styles: IStyle[]; expanded: boolean; }
+        interface IGenre extends IStyle { styles: IStyle[]; expanded: boolean; }
         export class Controller {
-            static $inject: string[] = ["$database"];
-            constructor(private $database: Database.Service) {
-                this.fetchGenres().then((genres: IGenre[]) => { this.expand(genres[0]); });
+            static $inject: string[] = ["$database", "$routeParams", "$location"];
+            constructor(
+                private $database: Database.Service,
+                private $routeParams: IRouteParams,
+                private $location: angular.ILocationService) {
+                this.loadGenres();
             }
             public genres: IGenre[];
-            public expand(genre: IGenre, $event?: angular.IAngularEvent) {
-                if ($event) { $event.preventDefault(); $event.stopPropagation(); }
-                this.genres.forEach(function (item: IGenre) { item.expanded = false; });
-                genre.expanded = true;
-            }
-            public fetchGenres(): angular.IPromise<IGenre[]> {
-                return this.$database.$execute("apiSearch").then((response: Database.IResponse) => {
+            public loadGenres(): void {
+                this.$database.$execute("apiSearch").then((response: Database.IResponse) => {
                     this.genres = response.data.genres;
-                    this.genres[0].expanded = true;
-                    return this.genres;
+                    if (!this.expand(this.$routeParams.genreUri || this.genres[0].uri)) {
+                        this.$location.path("/search");
+                    }
                 }, angular.noop);
+            }
+            public expand(genreUri: string, $event?: angular.IAngularEvent): boolean {
+                if ($event) { $event.preventDefault(); $event.stopPropagation(); }
+                let found: boolean = false;
+                this.genres.forEach(function (item: IGenre) {
+                    if (item.uri === genreUri) {
+                        item.expanded = found = true;
+                    } else {
+                        item.expanded = false;
+                    }
+                });
+                return found;
             }
         }
     }
@@ -337,7 +349,7 @@ gm.config(["$logProvider", "$routeProvider", function (
     $logProvider.debugEnabled(GoodMusic.debugEnabled);
     $routeProvider
         .when("/home", { name: "home", templateUrl: "Views/home.html" })
-        .when("/search", {
+        .when("/search/:genreUri?", {
             name: "search",
             templateUrl: "Views/search.html",
             controller: GoodMusic.Search.Controller,

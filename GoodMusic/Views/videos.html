@@ -22,12 +22,12 @@
                     <b>
                         <span>{{video.rank}}. {{video.title}}</span>
                         <br />
-                        <i class="fa fa-fw" ng-class="{'fa-thumbs-up': video.like == 1, 'fa-thumbs-o-up': video.like != 1}"></i>
+                        <i class="fa fa-fw" ng-class="{'fa-thumbs-up text-primary': video.like == 1, 'fa-thumbs-o-up': video.like != 1}"></i>
                         <span>{{video.likes}}</span>
-                        <i class="fa fa-fw" ng-class="{'fa-thumbs-down': video.dislike == 1, 'fa-thumbs-o-down': video.dislike != 1}"></i>
+                        <i class="fa fa-fw" ng-class="{'fa-thumbs-down text-primary': video.dislike == 1, 'fa-thumbs-o-down': video.dislike != 1}"></i>
                         <span>{{video.dislikes}}</span>
                         <span>&nbsp;</span>
-                        <i class="fa fa-fw" ng-class="{'fa-heart': video.favourite == 1, 'fa-heart-o': video.favourite != 1}"></i>
+                        <i class="fa fa-fw" ng-class="{'fa-heart text-danger': video.favourite == 1, 'fa-heart-o': video.favourite != 1}"></i>
                     </b>
                 </div>
             </div>

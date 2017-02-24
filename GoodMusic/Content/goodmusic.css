@@ -12,3 +12,7 @@ button.list-group-item {
     width: 100%;
     text-align: left;
 }
+
+[ng-click]{
+    cursor: pointer !important;
+}

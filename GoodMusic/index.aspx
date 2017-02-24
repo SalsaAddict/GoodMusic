@@ -9,7 +9,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Good Music for Dance</title>
     <link rel="icon" type="image/x-icon" href="Content/favicon.ico">
-    <link rel="stylesheet" type="text/css" href="Content/bootstrap.simplex.min.css">
+    <link rel="stylesheet" type="text/css" href="Content/bootstrap.cerulean.min.css">
     <link rel="stylesheet" type="text/css" href="Content/font-awesome.min.css">
     <link rel="stylesheet" type="text/css" href="Content/goodmusic.min.css">
 </head>

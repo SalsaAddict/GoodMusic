@@ -1,19 +1,21 @@
 ﻿<div class="col-xs-12 col-sm-offset-2 col-sm-8 col-md-offset-3 col-md-6 col-lg-offset-4 col-lg-4">
     <div class="text-center text-uppercase"><h4>Dance Style</h4></div>
-    <div class="list-group">
-        <button type="button" class="list-group-item btn-default" ng-repeat-start="genre in $ctrl.genres" ng-click="$ctrl.expand(genre, $event)">
-            <i class="fa fa-fw fa-lg" ng-class="{'fa-plus-circle': !genre.expanded, 'fa-minus-circle': genre.expanded}"></i>
-            <span>{{genre.name}}</span>
-        </button>
-        <div uib-collapse="!genre.expanded" ng-repeat-end>
-            <a ng-href="#!/videos/all/{{genre.uri}}" class="list-group-item" ng-if="genre.styles.length > 1">
-                <b>All Styles</b>
-                <span class="badge">{{genre.count}}</span>
-            </a>
-            <a ng-href="#!/videos/all/{{genre.uri}}/{{style.uri}}" class="list-group-item" ng-repeat="style in genre.styles">
-                <b>{{style.name}}</b>
-                <span class="badge">{{style.count}}</span>
-            </a>
+    <div class="panel-group">
+        <div class="panel panel-primary" ng-repeat="genre in $ctrl.genres">
+            <div class="panel-heading" ng-click="$ctrl.expand(genre.uri, $event)">
+                <i class="fa fa-fw fa-lg" ng-class="{'fa-plus-circle': !genre.expanded, 'fa-minus-circle': genre.expanded}"></i>
+                <span>{{genre.name}}</span>
+            </div>
+            <div class="list-group" uib-collapse="!genre.expanded">
+                <a ng-href="#!/videos/all/{{genre.uri}}" class="list-group-item" ng-if="genre.styles.length > 1">
+                    <b>All Styles</b>
+                    <span class="badge">{{genre.count}}</span>
+                </a>
+                <a ng-href="#!/videos/all/{{genre.uri}}/{{style.uri}}" class="list-group-item" ng-repeat="style in genre.styles">
+                    <b>{{style.name}}</b>
+                    <span class="badge">{{style.count}}</span>
+                </a>
+            </div>
         </div>
     </div>
 </div>

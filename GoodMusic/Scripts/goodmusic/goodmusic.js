@@ -284,28 +284,38 @@ var GoodMusic;
     var Search;
     (function (Search) {
         var Controller = (function () {
-            function Controller($database) {
-                var _this = this;
+            function Controller($database, $routeParams, $location) {
                 this.$database = $database;
-                this.fetchGenres().then(function (genres) { _this.expand(genres[0]); });
+                this.$routeParams = $routeParams;
+                this.$location = $location;
+                this.loadGenres();
             }
-            Controller.prototype.expand = function (genre, $event) {
+            Controller.prototype.loadGenres = function () {
+                var _this = this;
+                this.$database.$execute("apiSearch").then(function (response) {
+                    _this.genres = response.data.genres;
+                    if (!_this.expand(_this.$routeParams.genreUri || _this.genres[0].uri)) {
+                        _this.$location.path("/search");
+                    }
+                }, angular.noop);
+            };
+            Controller.prototype.expand = function (genreUri, $event) {
                 if ($event) {
                     $event.preventDefault();
                     $event.stopPropagation();
                 }
-                this.genres.forEach(function (item) { item.expanded = false; });
-                genre.expanded = true;
+                var found = false;
+                this.genres.forEach(function (item) {
+                    if (item.uri === genreUri) {
+                        item.expanded = found = true;
+                    }
+                    else {
+                        item.expanded = false;
+                    }
+                });
+                return found;
             };
-            Controller.prototype.fetchGenres = function () {
-                var _this = this;
-                return this.$database.$execute("apiSearch").then(function (response) {
-                    _this.genres = response.data.genres;
-                    _this.genres[0].expanded = true;
-                    return _this.genres;
-                }, angular.noop);
-            };
-            Controller.$inject = ["$database"];
+            Controller.$inject = ["$database", "$routeParams", "$location"];
             return Controller;
         }());
         Search.Controller = Controller;
@@ -469,7 +479,7 @@ gm.config(["$logProvider", "$routeProvider", function ($logProvider, $routeProvi
         $logProvider.debugEnabled(GoodMusic.debugEnabled);
         $routeProvider
             .when("/home", { name: "home", templateUrl: "Views/home.html" })
-            .when("/search", {
+            .when("/search/:genreUri?", {
             name: "search",
             templateUrl: "Views/search.html",
             controller: GoodMusic.Search.Controller,
