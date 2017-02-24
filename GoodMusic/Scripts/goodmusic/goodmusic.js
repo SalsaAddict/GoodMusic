@@ -133,11 +133,12 @@ var GoodMusic;
     var Playlist;
     (function (Playlist) {
         var Service = (function () {
-            function Service($authentication, $database, $filter) {
+            function Service($authentication, $database, $filter, $window) {
                 this.$authentication = $authentication;
                 this.$database = $database;
                 this.$filter = $filter;
-                this.$data = {};
+                this.$window = $window;
+                this.$data = angular.fromJson(this.$window.localStorage.getItem("$data") || "{}");
             }
             Object.defineProperty(Service.prototype, "loaded", {
                 get: function () { return angular.isDefined(this.$data.videos); },
@@ -218,6 +219,7 @@ var GoodMusic;
                             title: response.data.title,
                             videos: response.data.videos
                         };
+                        _this.$window.localStorage.setItem("$data", angular.toJson(_this.$data));
                     }
                     else {
                         _this.$data = {};
@@ -225,7 +227,7 @@ var GoodMusic;
                     return _this.parameters;
                 }, angular.noop);
             };
-            Service.$inject = ["$authentication", "$database", "$filter"];
+            Service.$inject = ["$authentication", "$database", "$filter", "$window"];
             return Service;
         }());
         Playlist.Service = Service;

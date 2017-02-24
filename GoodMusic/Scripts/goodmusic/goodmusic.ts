@@ -113,12 +113,14 @@ module GoodMusic {
             index?: number;
         }
         export class Service {
-            static $inject: string[] = ["$authentication", "$database", "$filter"];
+            static $inject: string[] = ["$authentication", "$database", "$filter", "$window"];
             constructor(
                 private $authentication: Authentication.Service,
                 private $database: Database.Service,
-                private $filter: angular.IFilterService) { }
-            private $data: IData = {};
+                private $filter: angular.IFilterService,
+                private $window: angular.IWindowService) {
+            }
+            private $data: IData = angular.fromJson(this.$window.localStorage.getItem("$data") || "{}");
             public get loaded(): boolean { return angular.isDefined(this.$data.videos); }
             public get title(): string { return this.$data.title || "Good Music"; }
             public get parameters(): IParameters {
@@ -158,6 +160,7 @@ module GoodMusic {
                             title: response.data.title,
                             videos: response.data.videos
                         };
+                        this.$window.localStorage.setItem("$data", angular.toJson(this.$data));
                     } else { this.$data = {}; }
                     return this.parameters;
                 }, angular.noop);
