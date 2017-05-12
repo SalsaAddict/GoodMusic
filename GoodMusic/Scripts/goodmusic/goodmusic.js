@@ -255,7 +255,7 @@ var GoodMusic;
                     switch (this.$route.current.name) {
                         case "load":
                         case "list":
-                        case "view": return this.$playlist.title;
+                        case "play": return this.$playlist.title;
                         default: return defaultTitle;
                     }
                 },
@@ -424,7 +424,14 @@ var GoodMusic;
                     height: "100%",
                     events: {
                         onReady: function (event) {
+                            console.debug("ready", event);
                             _this.play();
+                        },
+                        onStateChange: function (event) {
+                            console.debug("stateChange", event);
+                            if (event.data = YT.PlayerState.ENDED) {
+                                _this.next();
+                            }
                         }
                     }
                 });
@@ -500,7 +507,7 @@ gm.config(["$logProvider", "$routeProvider", function ($logProvider, $routeProvi
             controllerAs: "$ctrl"
         })
             .when("/video", {
-            name: "video",
+            name: "play",
             templateUrl: "Views/video.html",
             controller: GoodMusic.Video.Controller,
             controllerAs: "$ctrl"

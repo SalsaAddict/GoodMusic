@@ -181,7 +181,7 @@ module GoodMusic {
                 let defaultTitle: string = "Good Music";
                 if (!this.$route.current) { return defaultTitle; }
                 switch (this.$route.current.name) {
-                    case "load": case "list": case "view": return this.$playlist.title;
+                    case "load": case "list": case "play": return this.$playlist.title;
                     default: return defaultTitle;
                 }
             }
@@ -308,8 +308,15 @@ module GoodMusic {
                     width: "100%",
                     height: "100%",
                     events: {
-                        onReady: (event: YT.Events) => {
+                        onReady: (event: YT.EventArgs): void => {
+                            console.debug("ready", event);
                             this.play();
+                        },
+                        onStateChange: (event: YT.EventArgs): void => {
+                            console.debug("stateChange", event);
+                            if (event.data = YT.PlayerState.ENDED) {
+                                this.next();
+                            }
                         }
                     }
                 });
@@ -324,12 +331,12 @@ module GoodMusic {
                 }
                 this.player.loadVideoById(this.video.videoId);
             }
-            public previous($event: angular.IAngularEvent): void {
+            public previous($event?: angular.IAngularEvent): void {
                 if ($event) { $event.preventDefault(); $event.stopPropagation(); }
                 this.$playlist.index--;
                 this.play();
             }
-            public next($event: angular.IAngularEvent): void {
+            public next($event?: angular.IAngularEvent): void {
                 if ($event) { $event.preventDefault(); $event.stopPropagation(); }
                 this.$playlist.index++;
                 this.play();
@@ -371,7 +378,7 @@ gm.config(["$logProvider", "$routeProvider", function (
             controllerAs: "$ctrl"
         })
         .when("/video", {
-            name: "video",
+            name: "play",
             templateUrl: "Views/video.html",
             controller: GoodMusic.Video.Controller,
             controllerAs: "$ctrl"
