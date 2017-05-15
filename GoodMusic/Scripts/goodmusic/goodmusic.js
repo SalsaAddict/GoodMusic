@@ -344,6 +344,9 @@ var GoodMusic;
                             $log.warn("gm:playlist:nolist");
                             $location.path("/search");
                         }
+                        else {
+                            this.$route.updateParams(this.$playlist.parameters);
+                        }
                         break;
                 }
                 //this.page = Math.floor($playlist.index / this.pageSize);
@@ -382,15 +385,22 @@ var GoodMusic;
                 enumerable: true,
                 configurable: true
             });
+            Object.defineProperty(Controller.prototype, "index", {
+                get: function () { return this.$playlist.index; },
+                enumerable: true,
+                configurable: true
+            });
             Object.defineProperty(Controller.prototype, "period", {
                 get: function () { return this.$playlist.parameters.period || "all"; },
                 enumerable: true,
                 configurable: true
             });
             Controller.prototype.setPeriod = function (period) {
-                var parameters = this.$playlist.parameters;
-                parameters.period = period;
-                this.$route.updateParams(parameters);
+                var path = "/videos/" + period + "/" + this.$playlist.parameters.genreUri;
+                if (this.$playlist.parameters.styleUri) {
+                    path += "/" + this.$playlist.parameters.styleUri;
+                }
+                this.$location.path(path);
             };
             Controller.prototype.top = function () { this.$anchorScroll(); };
             Controller.prototype.open = function (video, $event) {
@@ -409,8 +419,9 @@ var GoodMusic;
     var Video;
     (function (Video) {
         var Controller = (function () {
-            function Controller($playlist, $location, $log) {
+            function Controller($scope, $playlist, $location, $log) {
                 var _this = this;
+                this.$scope = $scope;
                 this.$playlist = $playlist;
                 this.$location = $location;
                 this.$log = $log;
@@ -424,13 +435,13 @@ var GoodMusic;
                     height: "100%",
                     events: {
                         onReady: function (event) {
-                            console.debug("ready", event);
                             _this.play();
+                            _this.$scope.$apply();
                         },
                         onStateChange: function (event) {
-                            console.debug("stateChange", event);
-                            if (event.data = YT.PlayerState.ENDED) {
+                            if (event.data === YT.PlayerState.ENDED) {
                                 _this.next();
+                                _this.$scope.$apply();
                             }
                         }
                     }
@@ -473,7 +484,7 @@ var GoodMusic;
                 this.$playlist.index++;
                 this.play();
             };
-            Controller.$inject = ["$playlist", "$location", "$log"];
+            Controller.$inject = ["$scope", "$playlist", "$location", "$log"];
             return Controller;
         }());
         Video.Controller = Controller;
@@ -518,3 +529,4 @@ gm.config(["$logProvider", "$routeProvider", function ($logProvider, $routeProvi
 gm.run(["$authentication", "$log", function ($authentication, $log) {
         $log.debug("gm:run");
     }]);
+//# sourceMappingURL=goodmusic.js.map

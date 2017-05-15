@@ -50,6 +50,7 @@
                 </ul>
                 <div class="navbar-right">
                     <p class="navbar-text" ng-if="$menu.authenticated">
+                        <i class="fa fa-user"></i>
                         <small>{{$menu.username}}</small>
                     </p>
                     <ul class="nav navbar-nav">
@@ -76,8 +77,8 @@
     <script type="text/javascript" src="Scripts/angular-animate.min.js?v=<%= RandomGuid %>"></script>
     <script type="text/javascript" src="Scripts/angular-route.min.js?v=<%= RandomGuid %>"></script>
     <script type="text/javascript" src="Scripts/angular-ui/ui-bootstrap-tpls.min.js?v=<%= RandomGuid %>"></script>
+    <script type="text/javascript" src="https://www.youtube.com/iframe_api"></script>
     <script type="text/javascript" src="Scripts/goodmusic/goodmusic.min.js?v=<%= RandomGuid %>"></script>
     <script type="text/javascript" src="https://connect.facebook.net/en_US/sdk.js"></script>
-    <script type="text/javascript" src="https://www.youtube.com/iframe_api"></script>
 </body>
 </html>

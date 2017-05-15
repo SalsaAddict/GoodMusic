@@ -20,7 +20,7 @@
                 </div>
                 <div class="caption ellipsis text-uppercase">
                     <b>
-                        <span>{{video.rank}}. {{video.title}}</span>
+                        <span ng-class="{ 'text-danger': $index == $ctrl.index }">{{video.rank}}. {{video.title}}</span>
                         <br />
                         <i class="fa fa-fw" ng-class="{'fa-thumbs-up text-primary': video.like == 1, 'fa-thumbs-o-up': video.like != 1}"></i>
                         <span>{{video.likes}}</span>

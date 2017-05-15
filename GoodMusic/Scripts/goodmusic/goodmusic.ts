@@ -251,6 +251,8 @@ module GoodMusic {
                         if (!$playlist.loaded) {
                             $log.warn("gm:playlist:nolist");
                             $location.path("/search");
+                        } else {
+                            this.$route.updateParams(this.$playlist.parameters);
                         }
                         break;
                 }
@@ -271,12 +273,13 @@ module GoodMusic {
             public get title(): string { return this.$playlist.title; }
             public get videos(): Video.IVideo[] { return this.$playlist.videos; }
             public get count(): number { return this.$playlist.count; }
+            public get index(): number { return this.$playlist.index; }
             public get period(): Playlist.Period { return this.$playlist.parameters.period || "all"; }
             public periods: string[] = ["all", "weekly", "monthly", "yearly"];
             public setPeriod(period: Playlist.Period): void {
-                let parameters: Playlist.IParameters = this.$playlist.parameters;
-                parameters.period = period;
-                this.$route.updateParams(parameters);
+                let path: string = "/videos/" + period + "/" + this.$playlist.parameters.genreUri;
+                if (this.$playlist.parameters.styleUri) { path += "/" + this.$playlist.parameters.styleUri; }
+                this.$location.path(path);
             }
             public top(): void { this.$anchorScroll(); }
             public open(video: Video.IVideo, $event: angular.IAngularEvent): void {
@@ -294,8 +297,9 @@ module GoodMusic {
             favourite: string;
         }
         export class Controller {
-            static $inject: string[] = ["$playlist", "$location", "$log"];
+            static $inject: string[] = ["$scope", "$playlist", "$location", "$log"];
             constructor(
+                private $scope: angular.IScope,
                 private $playlist: Playlist.Service,
                 private $location: angular.ILocationService,
                 private $log: angular.ILogService) {
@@ -309,13 +313,13 @@ module GoodMusic {
                     height: "100%",
                     events: {
                         onReady: (event: YT.EventArgs): void => {
-                            console.debug("ready", event);
                             this.play();
+                            this.$scope.$apply();
                         },
                         onStateChange: (event: YT.EventArgs): void => {
-                            console.debug("stateChange", event);
-                            if (event.data = YT.PlayerState.ENDED) {
+                            if (event.data === YT.PlayerState.ENDED) {
                                 this.next();
+                                this.$scope.$apply();
                             }
                         }
                     }
