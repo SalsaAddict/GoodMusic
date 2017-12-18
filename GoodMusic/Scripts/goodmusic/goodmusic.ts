@@ -7,7 +7,7 @@ module GoodMusic {
     "option strict";
     export const debugEnabled: boolean = true;
     export const fbAppId: string = "1574477942882037";
-    export const googleApiKey: string = "AIzaSyCtuJp3jsaJp3X6U8ZS_X5H8omiAw5QaHg";
+    export const googleApiKey: string = "AIzaSyBqGRgdwJKpPGsToQ_1tOXvpeYmjNMW0Cw";
     export module Database {
         interface IHttpSuccess { data: IResponse }
         interface IHttpError { status: number; statusText: string; }
@@ -113,12 +113,13 @@ module GoodMusic {
             index?: number;
         }
         export class Service {
-            static $inject: string[] = ["$authentication", "$database", "$filter", "$window"];
+            static $inject: string[] = ["$authentication", "$database", "$filter", "$window", "$log"];
             constructor(
                 private $authentication: Authentication.Service,
                 private $database: Database.Service,
                 private $filter: angular.IFilterService,
-                private $window: angular.IWindowService) {
+                private $window: angular.IWindowService,
+                private $log: angular.ILogService) {
             }
             private $data: IData = angular.fromJson(this.$window.localStorage.getItem("$data") || "{}");
             public get loaded(): boolean { return angular.isDefined(this.$data.videos); }
@@ -142,6 +143,16 @@ module GoodMusic {
                 if (this.$data.index >= this.count) { return this.count - 1; }
                 return this.$data.index || 0;
             }
+            public get pageIndex(): number { return this.index - ((this.page - 1) * this.pageSize); }
+            public readonly pageSize: number = 12;
+            public get page(): number {
+                if (this.index <= 0) { return 1; }
+                return (Math.floor(this.index / this.pageSize) + 1);
+            }
+            public set page(page: number) {
+                this.index = ((page - 1) * this.pageSize);
+                this.$log.debug("gm:playlist:index", this.index, this.page);
+            }
             public get video(): Video.IVideo {
                 if (this.index < 0) { return; }
                 return this.videos[this.index];
@@ -162,13 +173,14 @@ module GoodMusic {
                         };
                         this.$window.localStorage.setItem("$data", angular.toJson(this.$data));
                     } else { this.$data = {}; }
+                    this.index = (this.count > 0) ? 0 : -1;
                     return this.parameters;
                 }, angular.noop);
             }
         }
     }
     export module Menu {
-        export class Controller {
+        export class Controller implements angular.IController {
             static $inject: string[] = ["$scope", "$route", "$authentication", "$playlist"];
             constructor(
                 private $scope: angular.IScope,
@@ -201,7 +213,7 @@ module GoodMusic {
         interface IPopularity { id: string; description: string; }
         interface IStyle { id: string; uri: string; name: string; count: string; }
         interface IGenre extends IStyle { styles: IStyle[]; expanded: boolean; }
-        export class Controller {
+        export class Controller implements angular.IController {
             static $inject: string[] = ["$database", "$routeParams", "$location"];
             constructor(
                 private $database: Database.Service,
@@ -234,7 +246,7 @@ module GoodMusic {
     }
     export module Videos {
         interface IRouteParams extends angular.route.IRouteParamsService, Playlist.IParameters { }
-        export class Controller {
+        export class Controller implements angular.IController {
             static $inject: string[] = ["$location", "$route", "$routeParams", "$playlist", "$anchorScroll", "$log"];
             constructor(
                 private $location: angular.ILocationService,
@@ -256,7 +268,9 @@ module GoodMusic {
                         }
                         break;
                 }
-                //this.page = Math.floor($playlist.index / this.pageSize);
+                if (this.pageIndex > 0) { $location.hash(String(this.pageIndex + 1)); }
+                $anchorScroll.yOffset = 70;
+                $anchorScroll();
             }
             private load(parameters: Playlist.IParameters): void {
                 this.$playlist.load(parameters)
@@ -266,14 +280,16 @@ module GoodMusic {
                         }
                     }, angular.noop);
             }
-            public page: number = 1;
-            public pageSize: number = 12;
             public get loaded(): boolean { return this.$playlist.loaded; }
             public get action(): string { return this.$route.current.name; }
             public get title(): string { return this.$playlist.title; }
             public get videos(): Video.IVideo[] { return this.$playlist.videos; }
             public get count(): number { return this.$playlist.count; }
             public get index(): number { return this.$playlist.index; }
+            public get pageIndex(): number { return this.$playlist.pageIndex; }
+            public get pageSize(): number { return this.$playlist.pageSize; }
+            public get page(): number { return this.$playlist.page; }
+            public set page(page: number) { this.$playlist.page = page; }
             public get period(): Playlist.Period { return this.$playlist.parameters.period || "all"; }
             public periods: string[] = ["all", "weekly", "monthly", "yearly"];
             public setPeriod(period: Playlist.Period): void {
@@ -281,7 +297,7 @@ module GoodMusic {
                 if (this.$playlist.parameters.styleUri) { path += "/" + this.$playlist.parameters.styleUri; }
                 this.$location.path(path);
             }
-            public top(): void { this.$anchorScroll(); }
+            //public top(): void { this.$anchorScroll(); }
             public open(video: Video.IVideo, $event: angular.IAngularEvent): void {
                 if ($event) { $event.preventDefault(); $event.stopPropagation(); }
                 this.$playlist.index = parseInt(video.rank) - 1;
@@ -296,7 +312,7 @@ module GoodMusic {
             dislike: string; dislikes: string;
             favourite: string;
         }
-        export class Controller {
+        export class Controller implements angular.IController {
             static $inject: string[] = ["$scope", "$playlist", "$location", "$log"];
             constructor(
                 private $scope: angular.IScope,

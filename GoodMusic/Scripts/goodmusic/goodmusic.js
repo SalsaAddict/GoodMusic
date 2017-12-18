@@ -7,7 +7,7 @@ var GoodMusic;
     "option strict";
     GoodMusic.debugEnabled = true;
     GoodMusic.fbAppId = "1574477942882037";
-    GoodMusic.googleApiKey = "AIzaSyCtuJp3jsaJp3X6U8ZS_X5H8omiAw5QaHg";
+    GoodMusic.googleApiKey = "AIzaSyBqGRgdwJKpPGsToQ_1tOXvpeYmjNMW0Cw";
     var Database;
     (function (Database) {
         var Service = (function () {
@@ -41,9 +41,9 @@ var GoodMusic;
                 }
                 return deferred.promise;
             };
-            Service.$inject = ["$q", "$http", "$log"];
             return Service;
         }());
+        Service.$inject = ["$q", "$http", "$log"];
         Database.Service = Service;
     })(Database = GoodMusic.Database || (GoodMusic.Database = {}));
     var Authentication;
@@ -125,20 +125,22 @@ var GoodMusic;
                 this.$log.debug("gm:deauthenticate", data);
                 this.$route.reload();
             };
-            Service.$inject = ["$database", "$window", "$route", "$log"];
             return Service;
         }());
+        Service.$inject = ["$database", "$window", "$route", "$log"];
         Authentication.Service = Service;
     })(Authentication = GoodMusic.Authentication || (GoodMusic.Authentication = {}));
     var Playlist;
     (function (Playlist) {
         var Service = (function () {
-            function Service($authentication, $database, $filter, $window) {
+            function Service($authentication, $database, $filter, $window, $log) {
                 this.$authentication = $authentication;
                 this.$database = $database;
                 this.$filter = $filter;
                 this.$window = $window;
+                this.$log = $log;
                 this.$data = angular.fromJson(this.$window.localStorage.getItem("$data") || "{}");
+                this.pageSize = 12;
             }
             Object.defineProperty(Service.prototype, "loaded", {
                 get: function () { return angular.isDefined(this.$data.videos); },
@@ -194,6 +196,25 @@ var GoodMusic;
                 enumerable: true,
                 configurable: true
             });
+            Object.defineProperty(Service.prototype, "pageIndex", {
+                get: function () { return this.index - ((this.page - 1) * this.pageSize); },
+                enumerable: true,
+                configurable: true
+            });
+            Object.defineProperty(Service.prototype, "page", {
+                get: function () {
+                    if (this.index <= 0) {
+                        return 1;
+                    }
+                    return (Math.floor(this.index / this.pageSize) + 1);
+                },
+                set: function (page) {
+                    this.index = ((page - 1) * this.pageSize);
+                    this.$log.debug("gm:playlist:index", this.index, this.page);
+                },
+                enumerable: true,
+                configurable: true
+            });
             Object.defineProperty(Service.prototype, "video", {
                 get: function () {
                     if (this.index < 0) {
@@ -224,12 +245,13 @@ var GoodMusic;
                     else {
                         _this.$data = {};
                     }
+                    _this.index = (_this.count > 0) ? 0 : -1;
                     return _this.parameters;
                 }, angular.noop);
             };
-            Service.$inject = ["$authentication", "$database", "$filter", "$window"];
             return Service;
         }());
+        Service.$inject = ["$authentication", "$database", "$filter", "$window", "$log"];
         Playlist.Service = Service;
     })(Playlist = GoodMusic.Playlist || (GoodMusic.Playlist = {}));
     var Menu;
@@ -278,9 +300,9 @@ var GoodMusic;
                 enumerable: true,
                 configurable: true
             });
-            Controller.$inject = ["$scope", "$route", "$authentication", "$playlist"];
             return Controller;
         }());
+        Controller.$inject = ["$scope", "$route", "$authentication", "$playlist"];
         Menu.Controller = Controller;
     })(Menu = GoodMusic.Menu || (GoodMusic.Menu = {}));
     var Search;
@@ -317,9 +339,9 @@ var GoodMusic;
                 });
                 return found;
             };
-            Controller.$inject = ["$database", "$routeParams", "$location"];
             return Controller;
         }());
+        Controller.$inject = ["$database", "$routeParams", "$location"];
         Search.Controller = Controller;
     })(Search = GoodMusic.Search || (GoodMusic.Search = {}));
     var Videos;
@@ -332,8 +354,6 @@ var GoodMusic;
                 this.$playlist = $playlist;
                 this.$anchorScroll = $anchorScroll;
                 this.$log = $log;
-                this.page = 1;
-                this.pageSize = 12;
                 this.periods = ["all", "weekly", "monthly", "yearly"];
                 switch (this.action) {
                     case "load":
@@ -349,7 +369,11 @@ var GoodMusic;
                         }
                         break;
                 }
-                //this.page = Math.floor($playlist.index / this.pageSize);
+                if (this.pageIndex > 0) {
+                    $location.hash(String(this.pageIndex + 1));
+                }
+                $anchorScroll.yOffset = 70;
+                $anchorScroll();
             }
             Controller.prototype.load = function (parameters) {
                 var _this = this;
@@ -390,6 +414,22 @@ var GoodMusic;
                 enumerable: true,
                 configurable: true
             });
+            Object.defineProperty(Controller.prototype, "pageIndex", {
+                get: function () { return this.$playlist.pageIndex; },
+                enumerable: true,
+                configurable: true
+            });
+            Object.defineProperty(Controller.prototype, "pageSize", {
+                get: function () { return this.$playlist.pageSize; },
+                enumerable: true,
+                configurable: true
+            });
+            Object.defineProperty(Controller.prototype, "page", {
+                get: function () { return this.$playlist.page; },
+                set: function (page) { this.$playlist.page = page; },
+                enumerable: true,
+                configurable: true
+            });
             Object.defineProperty(Controller.prototype, "period", {
                 get: function () { return this.$playlist.parameters.period || "all"; },
                 enumerable: true,
@@ -402,7 +442,7 @@ var GoodMusic;
                 }
                 this.$location.path(path);
             };
-            Controller.prototype.top = function () { this.$anchorScroll(); };
+            //public top(): void { this.$anchorScroll(); }
             Controller.prototype.open = function (video, $event) {
                 if ($event) {
                     $event.preventDefault();
@@ -411,9 +451,9 @@ var GoodMusic;
                 this.$playlist.index = parseInt(video.rank) - 1;
                 this.$location.path("/video");
             };
-            Controller.$inject = ["$location", "$route", "$routeParams", "$playlist", "$anchorScroll", "$log"];
             return Controller;
         }());
+        Controller.$inject = ["$location", "$route", "$routeParams", "$playlist", "$anchorScroll", "$log"];
         Videos.Controller = Controller;
     })(Videos = GoodMusic.Videos || (GoodMusic.Videos = {}));
     var Video;
@@ -484,9 +524,9 @@ var GoodMusic;
                 this.$playlist.index++;
                 this.play();
             };
-            Controller.$inject = ["$scope", "$playlist", "$location", "$log"];
             return Controller;
         }());
+        Controller.$inject = ["$scope", "$playlist", "$location", "$log"];
         Video.Controller = Controller;
     })(Video = GoodMusic.Video || (GoodMusic.Video = {}));
 })(GoodMusic || (GoodMusic = {}));
