@@ -8,6 +8,12 @@ module GoodMusic {
     export const debugEnabled: boolean = true;
     export const fbAppId: string = "1574477942882037";
     export const googleApiKey: string = "AIzaSyBqGRgdwJKpPGsToQ_1tOXvpeYmjNMW0Cw";
+    export interface IVideo {
+        rank: string; videoId: string; title: string;
+        like: string; likes: string;
+        dislike: string; dislikes: string;
+        favourite: string;
+    }
     export module Database {
         interface IHttpSuccess { data: IResponse }
         interface IHttpError { status: number; statusText: string; }
@@ -109,7 +115,7 @@ module GoodMusic {
         interface IData {
             parameters?: IParameters;
             title?: string;
-            videos?: Video.IVideo[];
+            videos?: IVideo[];
             index?: number;
         }
         export class Service {
@@ -128,11 +134,11 @@ module GoodMusic {
                 if (!this.$data) { return {}; }
                 return this.$data.parameters || {};
             }
-            public get videos(): Video.IVideo[] {
+            public get videos(): IVideo[] {
                 if (!this.$data) { return []; }
                 if (!angular.isArray(this.$data.videos)) { return []; }
                 return this.$filter("orderBy")(this.$data.videos,
-                    function (item: Video.IVideo) {
+                    function (item: IVideo) {
                         return parseInt(item.rank, 10);
                     });
             }
@@ -153,7 +159,7 @@ module GoodMusic {
                 this.index = ((page - 1) * this.pageSize);
                 this.$log.debug("gm:playlist:index", this.index, this.page);
             }
-            public get video(): Video.IVideo {
+            public get video(): IVideo {
                 if (this.index < 0) { return; }
                 return this.videos[this.index];
             }
@@ -258,17 +264,16 @@ module GoodMusic {
                 switch (this.action) {
                     case "load":
                         this.load(this.$routeParams);
+                        this.$route.updateParams(this.$playlist.parameters);
                         break;
                     case "list":
                         if (!$playlist.loaded) {
                             $log.warn("gm:playlist:nolist");
                             $location.path("/search");
-                        } else {
-                            this.$route.updateParams(this.$playlist.parameters);
                         }
                         break;
                 }
-                if (this.pageIndex > 0) { $location.hash(String(this.pageIndex + 1)); }
+                if (this.index > 0) { $location.hash(String(this.index + 1)); }
                 $anchorScroll.yOffset = 70;
                 $anchorScroll();
             }
@@ -283,7 +288,7 @@ module GoodMusic {
             public get loaded(): boolean { return this.$playlist.loaded; }
             public get action(): string { return this.$route.current.name; }
             public get title(): string { return this.$playlist.title; }
-            public get videos(): Video.IVideo[] { return this.$playlist.videos; }
+            public get videos(): IVideo[] { return this.$playlist.videos; }
             public get count(): number { return this.$playlist.count; }
             public get index(): number { return this.$playlist.index; }
             public get pageIndex(): number { return this.$playlist.pageIndex; }
@@ -298,20 +303,15 @@ module GoodMusic {
                 this.$location.path(path);
             }
             //public top(): void { this.$anchorScroll(); }
-            public open(video: Video.IVideo, $event: angular.IAngularEvent): void {
+            public open(video: IVideo, $event: angular.IAngularEvent): void {
                 if ($event) { $event.preventDefault(); $event.stopPropagation(); }
                 this.$playlist.index = parseInt(video.rank) - 1;
+                this.$location.hash("");
                 this.$location.path("/video");
             }
         }
     }
     export module Video {
-        export interface IVideo {
-            rank: string; videoId: string; title: string;
-            like: string; likes: string;
-            dislike: string; dislikes: string;
-            favourite: string;
-        }
         export class Controller implements angular.IController {
             static $inject: string[] = ["$scope", "$playlist", "$location", "$log"];
             constructor(
@@ -346,6 +346,7 @@ module GoodMusic {
             public get $first(): boolean { return (this.$playlist.index === 0); }
             public get $last(): boolean { return (this.$playlist.index === this.$playlist.count - 1); }
             public play(): void {
+                this.$location.hash(String(this.$playlist.index + 1));
                 if (this.player.getPlayerState() === YT.PlayerState.PLAYING) {
                     this.player.stopVideo();
                 }
@@ -383,25 +384,29 @@ gm.config(["$logProvider", "$routeProvider", function (
             name: "search",
             templateUrl: "Views/search.html",
             controller: GoodMusic.Search.Controller,
-            controllerAs: "$ctrl"
+            controllerAs: "$ctrl",
+            reloadOnSearch: false
         })
         .when("/videos/:period/:genreUri/:styleUri?", {
             name: "load",
             templateUrl: "Views/videos.html",
             controller: GoodMusic.Videos.Controller,
-            controllerAs: "$ctrl"
+            controllerAs: "$ctrl",
+            reloadOnSearch: false
         })
         .when("/videos", {
             name: "list",
             templateUrl: "Views/videos.html",
             controller: GoodMusic.Videos.Controller,
-            controllerAs: "$ctrl"
+            controllerAs: "$ctrl",
+            reloadOnSearch: false
         })
         .when("/video", {
             name: "play",
             templateUrl: "Views/video.html",
             controller: GoodMusic.Video.Controller,
-            controllerAs: "$ctrl"
+            controllerAs: "$ctrl",
+            reloadOnSearch: false
         })
         .otherwise({ redirectTo: "/home" })
         .caseInsensitiveMatch = true;

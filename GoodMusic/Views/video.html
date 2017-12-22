@@ -7,20 +7,30 @@
             <div class="embed-responsive-item" id="player"></div>
         </div>
         <div class="panel-footer">
-            <div class="text-center">
-                <div class="btn-group">
-                    <button type="button" class="btn btn-default" ng-click="$ctrl.previous()" ng-disabled="$ctrl.$first">
-                        <i class="fa fa-fw fa-backward"></i>
-                    </button>
-                    <a href="#!/videos" class="btn btn-default">
-                        <i class="fa fa-fw fa-list"></i>
-                    </a>
-                    <button type="button" class="btn btn-default" ng-click="$ctrl.next()" ng-disabled="$ctrl.$last">
-                        <i class="fa fa-fw fa-forward"></i>
-                    </button>
+            <div class="clearfix">
+                <div class="pull-left h5">
+                    <i class="fa fa-fw" ng-class="{'fa-thumbs-up text-primary': $ctrl.video.like == 1, 'fa-thumbs-o-up': $ctrl.video.like != 1}"></i>
+                    <span>{{$ctrl.video.likes}}</span>
+                    <i class="fa fa-fw" ng-class="{'fa-thumbs-down text-primary': $ctrl.video.dislike == 1, 'fa-thumbs-o-down': $ctrl.video.dislike != 1}"></i>
+                    <span>{{$ctrl.video.dislikes}}</span>
+                    <span>&nbsp;</span>
+                    <i class="fa fa-fw" ng-class="{'fa-heart text-danger': $ctrl.video.favourite == 1, 'fa-heart-o': $ctrl.video.favourite != 1}"></i>
+                </div>
+                <div class="pull-right">
+                    <div class="btn-group btn-group-sm">
+                        <button type="button" class="btn btn-default" ng-click="$ctrl.previous()" ng-disabled="$ctrl.$first">
+                            <i class="fa fa-fw fa-backward"></i>
+                        </button>
+                        <a href="#!/videos" class="btn btn-default">
+                            <i class="fa fa-fw fa-list"></i>
+                        </a>
+                        <button type="button" class="btn btn-default" ng-click="$ctrl.next()" ng-disabled="$ctrl.$last">
+                            <i class="fa fa-fw fa-forward"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
-
+{{$ctrl.video}}

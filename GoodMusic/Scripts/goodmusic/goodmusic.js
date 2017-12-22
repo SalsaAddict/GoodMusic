@@ -358,19 +358,17 @@ var GoodMusic;
                 switch (this.action) {
                     case "load":
                         this.load(this.$routeParams);
+                        this.$route.updateParams(this.$playlist.parameters);
                         break;
                     case "list":
                         if (!$playlist.loaded) {
                             $log.warn("gm:playlist:nolist");
                             $location.path("/search");
                         }
-                        else {
-                            this.$route.updateParams(this.$playlist.parameters);
-                        }
                         break;
                 }
-                if (this.pageIndex > 0) {
-                    $location.hash(String(this.pageIndex + 1));
+                if (this.index > 0) {
+                    $location.hash(String(this.index + 1));
                 }
                 $anchorScroll.yOffset = 70;
                 $anchorScroll();
@@ -449,6 +447,7 @@ var GoodMusic;
                     $event.stopPropagation();
                 }
                 this.$playlist.index = parseInt(video.rank) - 1;
+                this.$location.hash("");
                 this.$location.path("/video");
             };
             return Controller;
@@ -503,6 +502,7 @@ var GoodMusic;
                 configurable: true
             });
             Controller.prototype.play = function () {
+                this.$location.hash(String(this.$playlist.index + 1));
                 if (this.player.getPlayerState() === YT.PlayerState.PLAYING) {
                     this.player.stopVideo();
                 }
@@ -543,25 +543,29 @@ gm.config(["$logProvider", "$routeProvider", function ($logProvider, $routeProvi
             name: "search",
             templateUrl: "Views/search.html",
             controller: GoodMusic.Search.Controller,
-            controllerAs: "$ctrl"
+            controllerAs: "$ctrl",
+            reloadOnSearch: false
         })
             .when("/videos/:period/:genreUri/:styleUri?", {
             name: "load",
             templateUrl: "Views/videos.html",
             controller: GoodMusic.Videos.Controller,
-            controllerAs: "$ctrl"
+            controllerAs: "$ctrl",
+            reloadOnSearch: false
         })
             .when("/videos", {
             name: "list",
             templateUrl: "Views/videos.html",
             controller: GoodMusic.Videos.Controller,
-            controllerAs: "$ctrl"
+            controllerAs: "$ctrl",
+            reloadOnSearch: false
         })
             .when("/video", {
             name: "play",
             templateUrl: "Views/video.html",
             controller: GoodMusic.Video.Controller,
-            controllerAs: "$ctrl"
+            controllerAs: "$ctrl",
+            reloadOnSearch: false
         })
             .otherwise({ redirectTo: "/home" })
             .caseInsensitiveMatch = true;

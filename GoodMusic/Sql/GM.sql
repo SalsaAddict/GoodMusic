@@ -440,7 +440,7 @@ BEGIN
 			[genderId] = s.[genderId],
 			[countryId] = s.[countryId],
 			[ping] = s.[ping]
-	WHEN NOT MATCHED THEN
+	WHEN NOT MATCHED BY TARGET THEN
 		INSERT ([Id], [forename], [surname], [genderId], [countryId], [ping])
 		VALUES (s.[userId], s.[forename], s.[surname], s.[genderId], s.[countryId], s.[ping]);
 	SELECT
